@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target } from 'lucide-react'
-import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings } from '../lib/storage'
+import { useState } from 'react'
+import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star } from 'lucide-react'
+import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress } from '../lib/storage'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
 import ChristIcon from './ChristIcon'
 
@@ -16,6 +16,8 @@ const modes = [
   { id: 'timed', icon: Timer, label: 'Timed Quiz', desc: '15-second timer' },
   { id: 'missed', icon: AlertCircle, label: 'Review Missed', desc: 'Drill your weak spots' },
   { id: 'hard', icon: Zap, label: 'Hardest First', desc: 'Most-missed questions first' },
+  { id: 'levelup', icon: TrendingUp, label: 'Level Up', desc: 'Master categories step by step' },
+  { id: 'mock', icon: Trophy, label: 'Mock Exam', desc: 'Full 240-question test' },
 ]
 const ranges = [
   { value: 'all', label: 'All (1–240)' },
@@ -25,7 +27,7 @@ const ranges = [
 ]
 const counts = [10, 20, 30, 50, 100, 240]
 
-export default function HomeScreen({ onStart, onStats, onMemoryGame, resumeData, onResume, onDismissResume, theme, setTheme, allQuestions }) {
+export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, resumeData, onResume, onDismissResume, theme, setTheme, allQuestions }) {
   const saved = getSettings()
   const [mode, setMode] = useState(saved.mode || 'mc')
   const [numQ, setNumQ] = useState(saved.numQuestions || 50)
@@ -34,10 +36,19 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, resumeData,
   const [confirm, setConfirm] = useState(saved.confirmBeforeSubmit !== false)
   const [sound, setSound] = useState(isSoundOn())
   const [selectedCats, setSelectedCats] = useState(saved.categories || [])
+  const [dailyGoalVal, setDailyGoalVal] = useState(getDailyGoal())
+  const [showGoalPicker, setShowGoalPicker] = useState(false)
   const streak = getStreak()
   const missedCount = getMissed().length
   const sessions = getSessions()
   const totalStudied = sessions.reduce((s, x) => s + x.total, 0)
+  const dailyProgress = getDailyProgress()
+  const qotd = getQOTD(allQuestions.length)
+  const qotdQuestion = allQuestions.find(q => q.n === qotd.questionNum)
+  const levelUpProgress = getLevelUpProgress()
+
+  const goalPct = Math.min(100, Math.round((dailyProgress.count / dailyGoalVal) * 100))
+  const goalMet = dailyProgress.count >= dailyGoalVal
 
   const toggleCat = (cat) => {
     setSelectedCats(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])
@@ -45,6 +56,24 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, resumeData,
 
   const handleStart = () => {
     onStart({ mode, numQuestions: numQ, range, shuffle: shuffleOn, confirmBeforeSubmit: confirm, categories: selectedCats })
+  }
+
+  const handleQuick10 = () => {
+    onStart({ mode: 'mc', numQuestions: 10, range: 'all', shuffle: true, confirmBeforeSubmit: false, categories: [] })
+  }
+
+  const handleMockExam = () => {
+    onStart({ mode: 'mc', numQuestions: 240, range: 'all', shuffle: false, confirmBeforeSubmit: true, categories: [], isMockExam: true })
+  }
+
+  const handleLevelUp = () => {
+    onStart({ mode: 'levelup', numQuestions: 10, range: 'all', shuffle: true, confirmBeforeSubmit: false, categories: selectedCats.length > 0 ? selectedCats : [] })
+  }
+
+  const handleGoalChange = (val) => {
+    setDailyGoalVal(val)
+    setDailyGoal(val)
+    setShowGoalPicker(false)
   }
 
   const toggleSound = () => { const v = !sound; setSound(v); setSoundPref(v) }
@@ -89,6 +118,67 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, resumeData,
         </div>
       </div>
 
+      {/* Daily Study Goal */}
+      <div style={s.goalCard}>
+        <div style={s.goalHeader}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Star size={16} style={{ color: goalMet ? 'var(--accent)' : 'var(--cyan)' }} />
+            <span style={s.goalTitle}>DAILY GOAL</span>
+          </div>
+          <button onClick={() => setShowGoalPicker(!showGoalPicker)} style={s.goalEditBtn}>{dailyGoalVal}q/day</button>
+        </div>
+        <div style={s.goalBarOuter}>
+          <div style={{ ...s.goalBarFill, width: `${goalPct}%`, background: goalMet ? 'var(--green)' : 'var(--cyan)' }} />
+        </div>
+        <div style={s.goalText}>
+          {goalMet
+            ? `Goal reached! ${dailyProgress.count} questions today`
+            : `${dailyProgress.count} / ${dailyGoalVal} questions today`}
+        </div>
+        {showGoalPicker && (
+          <div style={s.goalPicker}>
+            {[10, 20, 30, 50, 100].map(v => (
+              <button key={v} onClick={() => handleGoalChange(v)} style={{ ...s.pill, ...(dailyGoalVal === v ? s.pillActive : {}) }}>{v}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Question of the Day */}
+      {qotdQuestion && (
+        <div style={s.qotdCard}>
+          <div style={s.qotdHeader}>
+            <Clock size={14} style={{ color: 'var(--accent)' }} />
+            <span style={s.qotdLabel}>QUESTION OF THE DAY</span>
+            {qotd.answered && (
+              <span style={{ ...s.qotdBadge, background: qotd.correct ? 'var(--green-subtle)' : 'var(--red-subtle)', color: qotd.correct ? 'var(--green)' : 'var(--red)', borderColor: qotd.correct ? 'var(--green)' : 'var(--red)' }}>
+                {qotd.correct ? '✓ Correct' : '✗ Missed'}
+              </span>
+            )}
+          </div>
+          <p style={s.qotdQ}>Q{qotdQuestion.n}) {qotdQuestion.q}</p>
+          {!qotd.answered ? (
+            <button onClick={() => onQOTD(qotdQuestion)} style={s.qotdBtn}>Answer Now</button>
+          ) : (
+            <div style={s.qotdAns}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan)' }}>{qotdQuestion.a}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div style={s.quickRow}>
+        <button onClick={handleQuick10} style={s.quickBtn}>
+          <Zap size={16} style={{ color: 'var(--accent)' }} />
+          <span>Quick 10</span>
+        </button>
+        <button onClick={handleMockExam} style={s.quickBtn}>
+          <Trophy size={16} style={{ color: 'var(--cyan)' }} />
+          <span>Mock Exam</span>
+        </button>
+      </div>
+
       {/* Resume banner */}
       {resumeData && (
         <div style={s.resumeBanner}>
@@ -110,11 +200,18 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, resumeData,
           {modes.map(m => {
             const Icon = m.icon; const active = mode === m.id
             const disabled = m.id === 'missed' && missedCount === 0
+            let desc = m.desc
+            if (m.id === 'missed') desc = `${missedCount} questions`
+            if (m.id === 'levelup') {
+              const totalLevels = Object.values(levelUpProgress)
+              const avgLevel = totalLevels.length > 0 ? (totalLevels.reduce((s, l) => s + l.level, 0) / totalLevels.length).toFixed(1) : '0'
+              desc = `Avg level: ${avgLevel}`
+            }
             return (
               <button key={m.id} onClick={() => !disabled && setMode(m.id)} style={{ ...s.modeCard, ...(active ? s.modeActive : {}), ...(disabled ? { opacity: 0.35, cursor: 'default' } : {}) }}>
                 <Icon size={20} style={{ color: active ? 'var(--cyan)' : 'var(--text-muted)', marginBottom: 3 }} />
                 <span style={{ ...s.modeName, color: active ? 'var(--cyan)' : 'var(--text-sec)' }}>{m.label}</span>
-                <span style={s.modeDesc}>{m.id === 'missed' ? `${missedCount} questions` : m.desc}</span>
+                <span style={s.modeDesc}>{desc}</span>
               </button>
             )
           })}
@@ -164,7 +261,9 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, resumeData,
         </div>
       </section>
 
-      <button onClick={handleStart} style={s.startBtn}>INITIALIZE TEST</button>
+      <button onClick={mode === 'mock' ? handleMockExam : mode === 'levelup' ? handleLevelUp : handleStart} style={s.startBtn}>
+        {mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : 'INITIALIZE TEST'}
+      </button>
 
       <button onClick={onMemoryGame} style={s.memoryBtn}>
         🧠 BIBLE MEMORY GAME
@@ -204,7 +303,7 @@ const s = {
   dismissBtn: { padding: '6px 10px', fontSize: 14, background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', cursor: 'pointer' },
   section: { marginBottom: 18 },
   secLabel: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'var(--cyan-dim)', marginBottom: 8 },
-  modeGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 },
+  modeGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 },
   modeCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '14px 6px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s', outline: 'none', textAlign: 'center', cursor: 'pointer', backdropFilter: 'blur(10px)' },
   modeActive: { borderColor: 'var(--cyan)', background: 'var(--cyan-subtle)', boxShadow: '0 0 15px rgba(0,212,255,0.12)' },
   modeName: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 600, letterSpacing: 0.8, marginBottom: 1 },
@@ -227,4 +326,24 @@ const s = {
   startBtn: { display: 'flex', width: '100%', justifyContent: 'center', padding: '15px 24px', fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 3, color: 'var(--bg)', background: 'linear-gradient(135deg, var(--cyan), var(--cyan-dim))', border: 'none', borderRadius: 'var(--radius)', boxShadow: '0 0 25px rgba(0,212,255,0.2)', marginBottom: 10, cursor: 'pointer' },
   memoryBtn: { display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '13px 24px', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 2, color: 'var(--cyan)', background: 'var(--cyan-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 14, cursor: 'pointer' },
   dlLink: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '10px 16px', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--cyan-dim)', background: 'var(--cyan-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', textDecoration: 'none' },
+  // Daily Goal styles
+  goalCard: { padding: '14px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 14, backdropFilter: 'blur(10px)' },
+  goalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  goalTitle: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'var(--cyan-dim)' },
+  goalEditBtn: { padding: '3px 10px', fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--cyan)', background: 'var(--cyan-subtle)', border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer' },
+  goalBarOuter: { width: '100%', height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
+  goalBarFill: { height: '100%', borderRadius: 3, transition: 'width 0.5s ease' },
+  goalText: { fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' },
+  goalPicker: { display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' },
+  // QOTD styles
+  qotdCard: { padding: '14px 16px', background: 'linear-gradient(135deg, rgba(251,191,36,0.06), rgba(0,212,255,0.04))', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 'var(--radius)', marginBottom: 14 },
+  qotdHeader: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
+  qotdLabel: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'var(--accent)' },
+  qotdBadge: { padding: '2px 8px', fontSize: 10, fontWeight: 600, borderRadius: 10, border: '1px solid', marginLeft: 'auto' },
+  qotdQ: { fontSize: 14, fontWeight: 500, color: 'var(--text)', lineHeight: 1.5, marginBottom: 10 },
+  qotdBtn: { padding: '8px 18px', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 1, color: 'var(--bg)', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
+  qotdAns: { padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' },
+  // Quick action styles
+  quickRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 },
+  quickBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 16px', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 1, color: 'var(--text)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', backdropFilter: 'blur(10px)' },
 }

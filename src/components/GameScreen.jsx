@@ -130,7 +130,7 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
     const cSet=hasScripture?new Set(q.refs):new Set([q.a])
     return(<>
       {mode==='timed'&&(<div style={st.timerBar}><div style={{...st.timerFill,width:`${(timeLeft/15)*100}%`,background:timeLeft<=5?'var(--red)':'var(--cyan)'}}/></div>)}
-      {isMulti&&!submitted&&<div style={st.hint}>Select all that apply</div>}
+      {isMulti&&!submitted&&<div style={st.hint}>Select {q.refs.length} answer{q.refs.length>1?'s':''}</div>}
       <div style={st.optGrid}>{options.map((opt,i)=>{
         const isC=cSet.has(opt),isSel=selected.has(opt)
         let ss={}
@@ -144,14 +144,14 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
       <Feedback correct={correct} answer={!correct&&submitted?q.a:null}/>
       {submitted&&<VerseBlock verses={q.verses}/>}
       <div style={st.actionRow}>
-        {!submitted&&needsConfirm&&<button onClick={()=>doSubmitMC()} style={st.btnP} disabled={selected.size===0}><Send size={15}/> Submit</button>}
+        {!submitted&&(needsConfirm||isMulti)&&<button onClick={()=>doSubmitMC()} style={st.btnP} disabled={selected.size===0}><Send size={15}/> Submit{isMulti&&selected.size>0?` (${selected.size}/${q.refs.length})`:''}</button>}
         {submitted&&<button onClick={nextQuestion} style={st.btnP}>{idx+1>=total?'Finish':'Next'} <ArrowRight size={16}/></button>}
       </div>
       {submitted&&<div style={st.swipeHint}>Swipe right for next →</div>}
     </>)
   }
 
-  const mLabels={mc:isMulti?'MULTIPLE CHOICE — SELECT ALL':'MULTIPLE CHOICE',type:'TYPE YOUR ANSWER',flash:'FLASHCARD',timed:isMulti?'TIMED — SELECT ALL':'TIMED QUIZ'}
+  const mLabels={mc:isMulti?`MULTIPLE CHOICE — SELECT ${q.refs.length}`:'MULTIPLE CHOICE',type:'TYPE YOUR ANSWER',flash:'FLASHCARD',timed:isMulti?`TIMED — SELECT ${q.refs.length}`:'TIMED QUIZ'}
 
   return(<div style={st.container}>
     <div style={st.topBar}><div style={st.topL}>
