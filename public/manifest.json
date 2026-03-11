@@ -1,0 +1,12 @@
+{
+  "name": "240 Milk Questions — CyberJudah.io",
+  "short_name": "Milk Questions",
+  "description": "Scripture trivia and Bible memory game",
+  "start_url": "/milk-trivia/",
+  "display": "standalone",
+  "background_color": "#030810",
+  "theme_color": "#00D4FF",
+  "icons": [
+    { "src": "logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

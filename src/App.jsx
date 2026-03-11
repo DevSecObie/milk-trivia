@@ -1,159 +1,145 @@
 import { useState, useCallback, useEffect } from 'react'
 import questions from './data/questions.json'
+import { getCategories } from './data/categories'
 import ParticleBackground from './components/ParticleBackground'
 import HomeScreen from './components/HomeScreen'
 import GameScreen from './components/GameScreen'
 import ResultsScreen from './components/ResultsScreen'
 import StatsScreen from './components/StatsScreen'
-import Leaderboard from './components/Leaderboard'
-import SettingsBar from './components/SettingsBar'
-import {
-  saveQuizProgress, loadQuizProgress, clearQuizProgress,
-  saveSession, recordStudyDay, addMissedQuestions, recordAnswer,
-  getMissedQuestions, weightedShuffle,
-  getTheme, setTheme as storeTheme,
-  getSoundEnabled, setSoundEnabled as storeSoundEnabled,
-  getCategories, ALL_CATEGORIES,
-} from './utils/storage'
+import MemoryGameScreen from './components/MemoryGameScreen'
+import { getActiveGame, clearActiveGame, saveActiveGame, getTheme, setThemePref, getSettings, saveSettings, getMissed, getWeightedQuestions, updateStreak, saveSessions, recordQuestionResult, addMissed, removeMissed } from './lib/storage'
 
 function shuffleArray(arr) {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
+  const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }; return a
 }
 
 const UNIQUE_REFS = [...new Set(questions.flatMap(q => q.refs || []))]
 
+// Attach categories to each question
+const ALL_Q = questions.map(q => ({ ...q, categories: getCategories(q.n) }))
+
 export default function App() {
   const [screen, setScreen] = useState('home')
   const [gameState, setGameState] = useState(null)
-  const [theme, setThemeState] = useState(getTheme)
-  const [soundOn, setSoundOnState] = useState(getSoundEnabled)
+  const [theme, setTheme] = useState(getTheme())
 
-  // Apply theme to document
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
+    setThemePref(theme)
   }, [theme])
 
-  // Check for saved progress on mount
+  // Check for active (resumable) game on mount
+  const [resumeData, setResumeData] = useState(null)
   useEffect(() => {
-    const saved = loadQuizProgress()
-    if (saved && saved.questions && saved.questions.length > 0) {
-      setGameState(saved)
-      setScreen('game')
+    const active = getActiveGame()
+    if (active && active.questions && active.idx < active.questions.length) {
+      setResumeData(active)
     }
   }, [])
 
-  const toggleTheme = useCallback(() => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setThemeState(next)
-    storeTheme(next)
-  }, [theme])
-
-  const toggleSound = useCallback(() => {
-    const next = !soundOn
-    setSoundOnState(next)
-    storeSoundEnabled(next)
-  }, [soundOn])
-
   const startGame = useCallback((settings) => {
-    let pool = [...questions]
+    let pool = [...ALL_Q]
 
-    // Category filter
-    if (settings.categories && settings.categories.length > 0 && settings.categories.length < ALL_CATEGORIES.length) {
-      const catSet = new Set(settings.categories)
-      pool = pool.filter(q => {
-        const qCats = getCategories(q.n)
-        return qCats.some(c => catSet.has(c))
-      })
+    // Filter by category
+    if (settings.categories && settings.categories.length > 0) {
+      pool = pool.filter(q => q.categories.some(c => settings.categories.includes(c)))
     }
-
-    // Range filter
+    // Filter by range
     if (settings.range !== 'all') {
       const [a, b] = settings.range.split('-').map(Number)
       pool = pool.filter(q => q.n >= a && q.n <= b)
     }
-
-    // "Review Missed" mode
-    if (settings.reviewMissed) {
-      const missed = getMissedQuestions()
-      const missedNums = new Set(Object.keys(missed).map(Number))
-      pool = pool.filter(q => missedNums.has(q.n))
-      if (pool.length === 0) {
-        alert('No missed questions to review! Keep studying.')
-        return
-      }
+    // Missed-only mode
+    if (settings.mode === 'missed') {
+      const missedNums = getMissed()
+      pool = ALL_Q.filter(q => missedNums.includes(q.n))
+      if (pool.length === 0) return alert('No missed questions to review!')
+      settings.mode = 'mc'
     }
-
-    // Difficulty-weighted shuffle vs random shuffle
-    if (settings.weightedShuffle) {
-      pool = weightedShuffle(pool)
+    // Difficulty weighting
+    if (settings.mode === 'hard') {
+      pool = getWeightedQuestions(pool)
+      settings.mode = 'mc'
     } else if (settings.shuffle) {
       pool = shuffleArray(pool)
     }
-
     pool = pool.slice(0, Math.min(settings.numQuestions, pool.length))
 
     const state = {
       mode: settings.mode,
       questions: pool,
       confirmBeforeSubmit: settings.confirmBeforeSubmit,
-      score: 0,
-      answers: [],
+      idx: 0, score: 0, answers: [],
       startTime: Date.now(),
-      currentIdx: 0,
     }
     setGameState(state)
-    saveQuizProgress(state)
+    saveActiveGame(state)
+    setResumeData(null)
     setScreen('game')
+    saveSettings(settings)
   }, [])
 
-  const onProgressUpdate = useCallback((progressState) => {
-    saveQuizProgress(progressState)
-    setGameState(progressState)
+  const resumeGame = useCallback(() => {
+    if (resumeData) {
+      setGameState(resumeData)
+      setScreen('game')
+      setResumeData(null)
+    }
+  }, [resumeData])
+
+  const dismissResume = useCallback(() => {
+    clearActiveGame()
+    setResumeData(null)
+  }, [])
+
+  const onGameProgress = useCallback((state) => {
+    saveActiveGame(state)
   }, [])
 
   const endGame = useCallback((answers, score) => {
-    clearQuizProgress()
-    const elapsed = gameState?.startTime ? Math.round((Date.now() - gameState.startTime) / 1000) : 0
-    const total = answers.length || gameState?.questions?.length || 0
-    const pct = total > 0 ? Math.round((score / total) * 100) : 0
-    const mode = gameState?.mode || 'mc'
+    clearActiveGame()
+    const elapsed = gameState ? Math.round((Date.now() - gameState.startTime) / 1000) : 0
 
-    const missedNums = answers.filter(a => !a.correct).map(a => a.q.n)
-    saveSession({
-      date: new Date().toISOString(),
-      mode, score, total, pct,
-      timeTakenSec: elapsed,
-      range: 'all',
+    // Record per-question stats + missed bank
+    answers.forEach(a => {
+      recordQuestionResult(a.q.n, a.correct)
+      if (!a.correct) addMissed(a.q.n)
+      else removeMissed(a.q.n)
     })
 
-    if (missedNums.length > 0) addMissedQuestions(missedNums)
-    answers.forEach(a => recordAnswer(a.q.n, a.correct))
-    recordStudyDay()
+    // Save session
+    saveSessions({
+      mode: gameState?.mode || 'mc',
+      score, total: answers.length,
+      pct: answers.length > 0 ? Math.round((score / answers.length) * 100) : 0,
+      timeSeconds: elapsed,
+    })
 
-    setGameState(prev => ({ ...prev, answers, score, timeTakenSec: elapsed }))
+    // Update streak
+    updateStreak()
+
+    setGameState(prev => ({ ...prev, answers, score, timeSeconds: elapsed }))
     setScreen('results')
   }, [gameState])
 
-  const goHome = useCallback(() => {
-    clearQuizProgress()
-    setScreen('home')
-    setGameState(null)
-  }, [])
+  const goHome = useCallback(() => { setScreen('home'); setGameState(null) }, [])
+  const goStats = useCallback(() => setScreen('stats'), [])
+  const goMemory = useCallback(() => setScreen('memory'), [])
 
   return (
     <>
       <ParticleBackground theme={theme} />
-      <SettingsBar theme={theme} onThemeToggle={toggleTheme} soundOn={soundOn} onSoundToggle={toggleSound} />
       {screen === 'home' && (
         <HomeScreen
           onStart={startGame}
-          onStats={() => setScreen('stats')}
-          onLeaderboard={() => setScreen('leaderboard')}
+          onStats={goStats}
+          onMemoryGame={goMemory}
+          resumeData={resumeData}
+          onResume={resumeGame}
+          onDismissResume={dismissResume}
+          theme={theme}
+          setTheme={setTheme}
+          allQuestions={ALL_Q}
         />
       )}
       {screen === 'game' && gameState && (
@@ -162,15 +148,19 @@ export default function App() {
           allRefs={UNIQUE_REFS}
           onEnd={endGame}
           onQuit={goHome}
-          onProgressUpdate={onProgressUpdate}
-          soundOn={soundOn}
+          onProgress={onGameProgress}
+          theme={theme}
         />
       )}
       {screen === 'results' && gameState && (
-        <ResultsScreen gameState={gameState} onHome={goHome} onPlayAgain={() => setScreen('home')} />
+        <ResultsScreen gameState={gameState} onHome={goHome} theme={theme} />
       )}
-      {screen === 'stats' && <StatsScreen onBack={goHome} />}
-      {screen === 'leaderboard' && <Leaderboard onBack={goHome} />}
+      {screen === 'stats' && (
+        <StatsScreen onBack={goHome} theme={theme} />
+      )}
+      {screen === 'memory' && (
+        <MemoryGameScreen onBack={goHome} />
+      )}
     </>
   )
 }
