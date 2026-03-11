@@ -112,7 +112,7 @@ export const CATEGORY_LABELS = {
   sabbath: { label: 'Sabbath', color: '#A78BFA', icon: '🕊️' },
   prophecy: { label: 'Prophecy', color: '#F472B6', icon: '🔮' },
   dietary: { label: 'Dietary', color: '#34D399', icon: '🍖' },
-  marriage: { label: 'Marriage', color: '#FB7185', icon: '💍' },
+  marriage: { label: 'Marriage', color: '#FB7185', icon: '👩🏿\u200D🤝\u200D👨🏿' },
   history: { label: 'History', color: '#60A5FA', icon: '📖' },
   doctrine: { label: 'Doctrine', color: '#C084FC', icon: '⚡' },
   commandments: { label: 'Commandments', color: '#FBBF24', icon: '⚖️' },
