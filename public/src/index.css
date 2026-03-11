@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+:root, [data-theme="dark"] {
+  --cyan: #00D4FF; --cyan-dim: #0088CC; --cyan-glow: rgba(0,212,255,0.3); --cyan-subtle: rgba(0,212,255,0.08); --cyan-border: rgba(0,212,255,0.2);
+  --green: #00FF88; --green-dim: #00CC6A; --green-glow: rgba(0,255,136,0.3); --green-subtle: rgba(0,255,136,0.08);
+  --red: #FF3366; --red-dim: #CC2952; --red-glow: rgba(255,51,102,0.3); --red-subtle: rgba(255,51,102,0.08);
+  --accent: #FBBF24;
+  --bg: #030810; --bg-card: rgba(8,16,32,0.85); --bg-elevated: rgba(12,24,48,0.9);
+  --text: #E0F0FF; --text-sec: #6B8FAD; --text-muted: #3A5570;
+  --border: rgba(0,212,255,0.12); --border-hover: rgba(0,212,255,0.35);
+  --radius: 12px; --radius-sm: 8px;
+  --font-display: 'Orbitron', monospace; --font-body: 'Rajdhani', sans-serif; --font-mono: 'Share Tech Mono', monospace;
+}
+[data-theme="light"] {
+  --bg: #F0F4F8; --bg-card: rgba(255,255,255,0.92); --bg-elevated: rgba(240,244,248,0.95);
+  --text: #0F172A; --text-sec: #475569; --text-muted: #94A3B8;
+  --border: rgba(0,136,204,0.15); --border-hover: rgba(0,136,204,0.3);
+  --cyan: #0077B6; --cyan-dim: #005A8C; --cyan-subtle: rgba(0,119,182,0.06);
+  --green: #059669; --green-subtle: rgba(5,150,105,0.08);
+  --red: #DC2626; --red-subtle: rgba(220,38,38,0.06);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; overflow-x: hidden; transition: background 0.3s, color 0.3s; }
+#three-bg { position: fixed; top:0; left:0; width:100vw; height:100vh; z-index:0; pointer-events:none; }
+#root { position: relative; z-index: 1; }
+button { cursor: pointer; font-family: var(--font-body); }
+input, select { font-family: var(--font-body); }
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--cyan-dim); border-radius: 2px; }
+::selection { background: rgba(0,212,255,0.25); color: #fff; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+.animate-in { animation: fadeUp 0.35s ease-out forwards; }
