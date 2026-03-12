@@ -9,6 +9,24 @@ function shuffleArray(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){con
 const ALL_REFS=[...new Set(questions.flatMap(q=>q.refs||[]))]
 const ALL_ANS=questions.filter(q=>!q.isScripture&&q.a.length<60).map(q=>q.a)
 
+// Fill in the Blank: pick a key word to blank out from verse text
+function generateBlank(verse, questionNum) {
+  const text = verse.text.replace(/\[\d+\]\s*/g, '') // strip verse numbers like [38]
+  const words = text.split(/\s+/)
+  // Skip short filler words, pick meaningful words (4+ chars)
+  const candidates = []
+  words.forEach((w, i) => {
+    const clean = w.replace(/[^a-zA-Z]/g, '')
+    if (clean.length >= 4) candidates.push({ word: clean, idx: i, original: w })
+  })
+  if (candidates.length === 0) return null
+  // Deterministic pick based on question number
+  const pick = candidates[questionNum % candidates.length]
+  // Build display text with blank
+  const display = words.map((w, i) => i === pick.idx ? '_____' : w).join(' ')
+  return { display, answer: pick.word, ref: verse.ref }
+}
+
 function VerseBlock({verses,defaultOpen=false}){
   const[open,setOpen]=useState(defaultOpen)
   if(!verses||verses.length===0)return null
@@ -40,6 +58,7 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
   const[typedValue,setTypedValue]=useState('')
   const[timeLeft,setTimeLeft]=useState(15)
   const[showQuit,setShowQuit]=useState(false)
+  const[blankData,setBlankData]=useState(null)
   const timerRef=useRef(null)
   const inputRef=useRef(null)
 
@@ -65,8 +84,13 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
         setOptions(shuffleArray([q.a,...wrong]))
       }
     }
+    if(mode==='fillin'&&q.verses&&q.verses.length>0){
+      const blank=generateBlank(q.verses[0],q.n)
+      setBlankData(blank)
+      setTimeout(()=>inputRef.current?.focus(),50)
+    }
     if(mode==='timed')setTimeLeft(15)
-    if(mode==='type')setTimeout(()=>inputRef.current?.focus(),50)
+    if(mode==='type'||mode==='fillin')setTimeout(()=>inputRef.current?.focus(),50)
   },[idx,q])
 
   useEffect(()=>{
@@ -101,6 +125,13 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
     if(isR)setScore(sc=>sc+1); setAnswers(p=>[...p,{q,correct:isR,given:typedValue.trim()}])
   }
 
+  const submitBlank=()=>{
+    if(submitted||!typedValue.trim()||!blankData)return
+    const isR=typedValue.trim().toLowerCase()===blankData.answer.toLowerCase()
+    setSubmitted(true);setCorrect(isR); sfx(isR?playCorrect:playIncorrect)
+    if(isR)setScore(sc=>sc+1); setAnswers(p=>[...p,{q,correct:isR,given:typedValue.trim()}])
+  }
+
   const nextQuestion=useCallback(()=>{
     if(!submitted)return
     if(idx+1>=total){onEnd(answers,score);return}
@@ -116,6 +147,27 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
     if(mode==='flash'){return(<>
       {submitted&&(<div style={st.flashAns} className="animate-in"><div style={st.flashLabel}>ANSWER</div><div style={st.flashVal}>{q.a}</div><VerseBlock verses={q.verses} defaultOpen={true}/></div>)}
       <div style={st.actionRow}>{!submitted?<button onClick={()=>setSubmitted(true)} style={st.btnP}>Reveal Answer</button>
+        :<button onClick={nextQuestion} style={st.btnP}>{idx+1>=total?'Finish':'Next'} <ArrowRight size={16}/></button>}</div>
+    </>)}
+
+    if(mode==='fillin'&&blankData){return(<>
+      <div style={st.blankRef}>{blankData.ref}</div>
+      <div style={st.blankVerse}>
+        {blankData.display.split('_____').map((part,i,arr)=>(
+          <span key={i}>
+            {part}
+            {i<arr.length-1&&(
+              submitted
+                ? <span style={{fontWeight:700,color:correct?'var(--green)':'var(--red)',textDecoration:'underline'}}>{blankData.answer}</span>
+                : <span style={st.blankSlot}>_____</span>
+            )}
+          </span>
+        ))}
+      </div>
+      <input ref={inputRef} type="text" value={typedValue} onChange={e=>setTypedValue(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submitBlank()} placeholder="Type the missing word..." disabled={submitted} style={st.input} autoComplete="off" autoCapitalize="off"/>
+      <Feedback correct={correct} answer={!correct&&submitted?blankData.answer:null}/>
+      {submitted&&<VerseBlock verses={q.verses}/>}
+      <div style={st.actionRow}>{!submitted?<button onClick={submitBlank} style={st.btnP} disabled={!typedValue.trim()}><Send size={15}/> Submit</button>
         :<button onClick={nextQuestion} style={st.btnP}>{idx+1>=total?'Finish':'Next'} <ArrowRight size={16}/></button>}</div>
     </>)}
 
@@ -151,7 +203,7 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
     </>)
   }
 
-  const mLabels={mc:isMulti?`MULTIPLE CHOICE — SELECT ${q.refs.length}`:'MULTIPLE CHOICE',type:'TYPE YOUR ANSWER',flash:'FLASHCARD',timed:isMulti?`TIMED — SELECT ${q.refs.length}`:'TIMED QUIZ'}
+  const mLabels={mc:isMulti?`MULTIPLE CHOICE — SELECT ${q.refs.length}`:'MULTIPLE CHOICE',type:'TYPE YOUR ANSWER',flash:'FLASHCARD',timed:isMulti?`TIMED — SELECT ${q.refs.length}`:'TIMED QUIZ',fillin:'FILL IN THE BLANK'}
 
   return(<div style={st.container}>
     <div style={st.topBar}><div style={st.topL}>
@@ -202,6 +254,9 @@ const st={
   indBad:{borderColor:'var(--red)',background:'var(--red)',color:'#fff'},
   optTxt:{fontFamily:'var(--font-mono)',fontSize:14,fontWeight:500},
   input:{width:'100%',padding:'13px 16px',background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',color:'var(--text)',fontFamily:'var(--font-mono)',fontSize:15,outline:'none'},
+  blankRef:{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:600,color:'var(--cyan)',marginBottom:10},
+  blankVerse:{fontSize:15,lineHeight:1.8,color:'var(--text)',fontStyle:'italic',padding:'16px 20px',background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:'var(--radius)',marginBottom:16},
+  blankSlot:{display:'inline-block',minWidth:80,borderBottom:'2px solid var(--cyan)',color:'var(--cyan)',fontWeight:700,fontStyle:'normal',textAlign:'center',margin:'0 2px',verticalAlign:'bottom'},
   flashAns:{padding:20,background:'var(--cyan-subtle)',border:'1px solid var(--border)',borderRadius:'var(--radius)',marginBottom:16},
   flashLabel:{fontFamily:'var(--font-display)',fontSize:9,fontWeight:700,letterSpacing:2,color:'var(--cyan)',marginBottom:8},
   flashVal:{fontFamily:'var(--font-mono)',fontSize:14,color:'var(--text)',lineHeight:1.6},

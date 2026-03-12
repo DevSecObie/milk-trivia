@@ -56,8 +56,14 @@ export default function App() {
       if (pool.length === 0) return alert('No missed questions to review!')
       settings.mode = 'mc'
     }
+    // Fill in the Blank: only questions with verses
+    if (settings.mode === 'fillin') {
+      pool = pool.filter(q => q.verses && q.verses.length > 0)
+      if (pool.length === 0) return alert('No questions with verses available!')
+      if (settings.shuffle) pool = shuffleArray(pool)
+    }
     // Level Up mode: pick questions from weak categories first
-    if (settings.mode === 'levelup') {
+    else if (settings.mode === 'levelup') {
       if (settings.categories && settings.categories.length > 0) {
         pool = pool.filter(q => q.categories.some(c => settings.categories.includes(c)))
       }
