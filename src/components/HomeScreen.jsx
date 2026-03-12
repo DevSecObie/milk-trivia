@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput } from 'lucide-react'
+import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain } from 'lucide-react'
 import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress } from '../lib/storage'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
 
@@ -11,6 +11,7 @@ const modes = [
   { id: 'missed', icon: AlertCircle, label: 'Review Missed', desc: 'Drill your weak spots' },
   { id: 'hard', icon: Zap, label: 'Hardest First', desc: 'Most-missed questions first' },
   { id: 'fillin', icon: TextCursorInput, label: 'Fill in Blank', desc: 'Complete the missing word' },
+  { id: 'memory', icon: Brain, label: 'Bible Memory', desc: 'Learn book order' },
   { id: 'levelup', icon: TrendingUp, label: 'Level Up', desc: 'Master categories step by step' },
   { id: 'mock', icon: Trophy, label: 'Mock Exam', desc: 'Full 240-question test' },
 ]
@@ -195,6 +196,7 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
           {modes.map(m => {
             const Icon = m.icon; const active = mode === m.id
             const disabled = m.id === 'missed' && missedCount === 0
+            if (m.id === 'memory') desc = 'Learn book order'
             let desc = m.desc
             if (m.id === 'missed') desc = `${missedCount} questions`
             if (m.id === 'levelup') {
@@ -256,12 +258,8 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
         </div>
       </section>
 
-      <button onClick={mode === 'mock' ? handleMockExam : mode === 'levelup' ? handleLevelUp : handleStart} style={s.startBtn}>
-        {mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : 'INITIALIZE TEST'}
-      </button>
-
-      <button onClick={onMemoryGame} style={s.memoryBtn}>
-        🧠 BIBLE MEMORY GAME
+      <button onClick={mode === 'memory' ? onMemoryGame : mode === 'mock' ? handleMockExam : mode === 'levelup' ? handleLevelUp : handleStart} style={s.startBtn}>
+        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : 'INITIALIZE TEST'}
       </button>
 
       <a href={`${import.meta.env.BASE_URL}240_Milk_Questions.pdf`} download style={s.dlLink}>
@@ -319,7 +317,6 @@ const s = {
   thumb: { width: 14, height: 14, borderRadius: '50%', background: 'var(--text-muted)', position: 'absolute', top: 2, left: 2, transition: 'all 0.2s' },
   thumbOn: { left: 20, background: 'var(--bg)' },
   startBtn: { display: 'flex', width: '100%', justifyContent: 'center', padding: '15px 24px', fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 3, color: 'var(--bg)', background: 'linear-gradient(135deg, var(--cyan), var(--cyan-dim))', border: 'none', borderRadius: 'var(--radius)', boxShadow: '0 0 25px rgba(0,212,255,0.2)', marginBottom: 10, cursor: 'pointer' },
-  memoryBtn: { display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '13px 24px', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 2, color: 'var(--cyan)', background: 'var(--cyan-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 14, cursor: 'pointer' },
   dlLink: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '10px 16px', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--cyan-dim)', background: 'var(--cyan-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', textDecoration: 'none' },
   // Daily Goal styles
   goalCard: { padding: '14px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 14, backdropFilter: 'blur(10px)' },
