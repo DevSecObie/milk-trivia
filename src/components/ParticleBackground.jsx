@@ -69,6 +69,25 @@ export default function ParticleBackground() {
     const grid = new THREE.LineSegments(gridGeo, gridMat)
     scene.add(grid)
 
+    // Translucent logo in center
+    const loader = new THREE.TextureLoader()
+    loader.load(`${import.meta.env.BASE_URL}logo.png`, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace
+      const aspect = texture.image.width / texture.image.height
+      const logoSize = 2.5
+      const logoGeo = new THREE.PlaneGeometry(logoSize * aspect, logoSize)
+      const logoMat = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.07,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })
+      const logoMesh = new THREE.Mesh(logoGeo, logoMat)
+      logoMesh.position.z = -2
+      scene.add(logoMesh)
+    })
+
     // Mouse tracking
     let mouseX = 0, mouseY = 0
     const onMouseMove = (e) => {

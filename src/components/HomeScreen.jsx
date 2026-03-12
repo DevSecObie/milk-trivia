@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star } from 'lucide-react'
+import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput } from 'lucide-react'
 import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress } from '../lib/storage'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
 import ChristIcon from './ChristIcon'
@@ -16,6 +16,7 @@ const modes = [
   { id: 'timed', icon: Timer, label: 'Timed Quiz', desc: '15-second timer' },
   { id: 'missed', icon: AlertCircle, label: 'Review Missed', desc: 'Drill your weak spots' },
   { id: 'hard', icon: Zap, label: 'Hardest First', desc: 'Most-missed questions first' },
+  { id: 'fillin', icon: TextCursorInput, label: 'Fill in Blank', desc: 'Complete the missing word' },
   { id: 'levelup', icon: TrendingUp, label: 'Level Up', desc: 'Master categories step by step' },
   { id: 'mock', icon: Trophy, label: 'Mock Exam', desc: 'Full 240-question test' },
 ]
