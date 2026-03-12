@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket } from 'lucide-react'
-import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress } from '../lib/storage'
+import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Smile, Crown, Award, Shield } from 'lucide-react'
+import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress, getXP, RANKS, checkAchievements, getSurvivalBest, getSpeedBest } from '../lib/storage'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
 
 const modes = [
@@ -11,14 +11,20 @@ const modes = [
   { id: 'missed', icon: AlertCircle, label: 'Review Missed', desc: 'Drill your weak spots', group: 'milk' },
   { id: 'hard', icon: Zap, label: 'Hardest First', desc: 'Most-missed questions first', group: 'milk' },
   { id: 'fillin', icon: TextCursorInput, label: 'Fill in Blank', desc: 'Complete the missing word', group: 'milk' },
+  { id: 'survival', icon: Shield, label: 'Survival', desc: 'One wrong = game over', group: 'milk' },
+  { id: 'speed', icon: Gauge, label: 'Speed Round', desc: '60s arcade mode', group: 'milk' },
+  { id: 'levelup', icon: TrendingUp, label: 'Level Up', desc: 'Master categories step by step', group: 'milk' },
+  { id: 'mock', icon: Trophy, label: 'Mock Exam', desc: 'Full 240-question test', group: 'milk' },
   { id: 'guessbook', icon: HelpCircle, label: 'Guess the Book', desc: 'Which book is this from?', group: 'bible' },
   { id: 'whosaid', icon: MessageCircle, label: 'Who Said It?', desc: 'Identify the speaker', group: 'bible' },
   { id: 'scenario', icon: Scale, label: 'Scenario', desc: 'Which law applies?', group: 'bible' },
   { id: 'quotecomplete', icon: Quote, label: 'Quote Complete', desc: 'Finish the verse', group: 'bible' },
   { id: 'catrush', icon: Rocket, label: 'Category Rush', desc: 'Topical speed round', group: 'bible' },
   { id: 'memory', icon: Brain, label: 'Bible Memory', desc: 'Learn book order', group: 'bible' },
-  { id: 'levelup', icon: TrendingUp, label: 'Level Up', desc: 'Master categories step by step', group: 'milk' },
-  { id: 'mock', icon: Trophy, label: 'Mock Exam', desc: 'Full 240-question test', group: 'milk' },
+  { id: 'emoji', icon: Smile, label: 'Emoji Quiz', desc: 'Guess the Bible story', group: 'bible' },
+  { id: 'match', icon: Link2, label: 'Scripture Match', desc: 'Connect verses to refs', group: 'bible' },
+  { id: 'virtuous', icon: Crown, label: 'Virtuous Woman', desc: 'Proverbs 31 & Titus 2', group: 'bible' },
+  { id: 'virtuous_scenario', icon: Heart, label: 'Sisters Scenario', desc: 'Godly woman situations', group: 'bible' },
 ]
 const ranges = [
   { value: 'all', label: 'All (1–240)' },
@@ -47,6 +53,12 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
   const qotd = getQOTD(allQuestions.length)
   const qotdQuestion = allQuestions.find(q => q.n === qotd.questionNum)
   const levelUpProgress = getLevelUpProgress()
+  const xp = getXP()
+  const nextRank = RANKS.find(r => r.xpNeeded > xp.total)
+  const xpPct = nextRank ? Math.round(((xp.total - (RANKS[xp.level - 1]?.xpNeeded || 0)) / (nextRank.xpNeeded - (RANKS[xp.level - 1]?.xpNeeded || 0))) * 100) : 100
+  const achievements = checkAchievements()
+  const survivalBest = getSurvivalBest()
+  const speedBest = getSpeedBest()
 
   const goalPct = Math.min(100, Math.round((dailyProgress.count / dailyGoalVal) * 100))
   const goalMet = dailyProgress.count >= dailyGoalVal
@@ -118,6 +130,36 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
           <span style={s.streakLabel}>missed</span>
         </div>
       </div>
+
+      {/* XP / Rank */}
+      <div style={s.xpCard}>
+        <div style={s.xpHeader}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Award size={16} style={{ color: 'var(--accent)' }} />
+            <span style={s.xpTitle}>LEVEL {xp.level} — {xp.title}</span>
+          </div>
+          <span style={s.xpTotal}>{xp.total} XP</span>
+        </div>
+        <div style={s.goalBarOuter}>
+          <div style={{ ...s.goalBarFill, width: `${xpPct}%`, background: 'linear-gradient(90deg, var(--accent), #D97706)' }} />
+        </div>
+        <div style={s.xpNext}>{nextRank ? `${nextRank.xpNeeded - xp.total} XP to ${nextRank.title}` : 'Max rank achieved!'}</div>
+      </div>
+
+      {/* Achievements */}
+      {achievements.unlocked.length > 0 && (
+        <div style={s.achRow}>
+          {achievements.all.filter(a => achievements.unlocked.includes(a.id)).slice(0, 6).map(a => (
+            <div key={a.id} style={s.achBadge} title={`${a.name}: ${a.desc}`}>
+              <span style={{ fontSize: 16 }}>{a.icon}</span>
+              <span style={s.achName}>{a.name}</span>
+            </div>
+          ))}
+          {achievements.unlocked.length > 6 && (
+            <div style={s.achMore}>+{achievements.unlocked.length - 6}</div>
+          )}
+        </div>
+      )}
 
       {/* Daily Study Goal */}
       <div style={s.goalCard}>
@@ -203,6 +245,8 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
             const disabled = m.id === 'missed' && missedCount === 0
             let desc = m.desc
             if (m.id === 'missed') desc = `${missedCount} questions`
+            if (m.id === 'survival') desc = survivalBest > 0 ? `Best: ${survivalBest}` : 'One wrong = game over'
+            if (m.id === 'speed') desc = speedBest > 0 ? `Best: ${speedBest} correct` : '60s arcade mode'
             if (m.id === 'levelup') {
               const totalLevels = Object.values(levelUpProgress)
               const avgLevel = totalLevels.length > 0 ? (totalLevels.reduce((s, l) => s + l.level, 0) / totalLevels.length).toFixed(1) : '0'
@@ -280,8 +324,8 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
       </section>
 
       <button onClick={mode === 'memory' ? onMemoryGame : mode === 'mock' ? handleMockExam : mode === 'levelup' ? handleLevelUp : handleStart}
-        style={{ ...s.startBtn, ...(modes.find(m => m.id === mode)?.group === 'bible' ? { background: 'linear-gradient(135deg, var(--accent), #D97706)', boxShadow: '0 0 25px rgba(251,191,36,0.2)' } : {}) }}>
-        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : mode === 'catrush' ? 'START CATEGORY RUSH' : 'START GAME'}
+        style={{ ...s.startBtn, ...(modes.find(m => m.id === mode)?.group === 'bible' ? { background: 'linear-gradient(135deg, var(--accent), #D97706)', boxShadow: '0 0 25px rgba(251,191,36,0.2)' } : {}), ...(mode === 'survival' ? { background: 'linear-gradient(135deg, var(--red), #DC2626)', boxShadow: '0 0 25px rgba(255,51,102,0.2)' } : {}), ...(mode === 'speed' ? { background: 'linear-gradient(135deg, var(--accent), var(--cyan))', boxShadow: '0 0 25px rgba(251,191,36,0.2)' } : {}) }}>
+        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : mode === 'survival' ? 'START SURVIVAL' : mode === 'speed' ? 'START SPEED ROUND' : mode === 'match' ? 'START SCRIPTURE MATCH' : mode === 'emoji' ? 'START EMOJI QUIZ' : mode === 'virtuous' ? 'START VIRTUOUS WOMAN' : mode === 'virtuous_scenario' ? 'START SISTERS SCENARIO' : mode === 'catrush' ? 'START CATEGORY RUSH' : 'START GAME'}
       </button>
 
       <a href={`${import.meta.env.BASE_URL}240_Milk_Questions.pdf`} download style={s.dlLink}>
@@ -361,4 +405,15 @@ const s = {
   // Quick action styles
   quickRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 },
   quickBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 16px', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 1, color: 'var(--text)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', backdropFilter: 'blur(10px)' },
+  // XP styles
+  xpCard: { padding: '12px 16px', background: 'linear-gradient(135deg, rgba(251,191,36,0.06), rgba(0,212,255,0.04))', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 'var(--radius)', marginBottom: 12 },
+  xpHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  xpTitle: { fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--accent)' },
+  xpTotal: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' },
+  xpNext: { fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 4 },
+  // Achievement styles
+  achRow: { display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
+  achBadge: { display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, fontSize: 10 },
+  achName: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 600, color: 'var(--text-sec)', letterSpacing: 0.5 },
+  achMore: { display: 'flex', alignItems: 'center', padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16 },
 }
