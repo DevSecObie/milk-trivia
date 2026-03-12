@@ -93,6 +93,31 @@ export default function App() {
       return
     }
 
+    // Virtuous Fill in the Blank mode
+    if (settings.mode === 'virtuous_fillin') {
+      const allFillIns = shuffleArray(VIRTUOUS_FILL_INS)
+      const vfPool = allFillIns.slice(0, settings.numQuestions).map((item, i) => {
+        const wrongAnswers = shuffleArray(allFillIns.filter(f => f.answer !== item.answer).map(f => f.answer)).slice(0, 3)
+        return {
+          n: i + 1, q: item.text, a: item.answer,
+          options: shuffleArray([item.answer, ...wrongAnswers]),
+          ref: item.ref, bibleMode: 'virtuous',
+          verses: [{ ref: item.ref, text: item.fullText }],
+        }
+      })
+      if (vfPool.length === 0) return alert('Not enough data!')
+      const state = {
+        mode: 'virtuous', questions: vfPool, confirmBeforeSubmit: false,
+        idx: 0, score: 0, answers: [], startTime: Date.now(),
+      }
+      setGameState(state)
+      saveActiveGame(state)
+      setResumeData(null)
+      setScreen('game')
+      saveSettings(settings)
+      return
+    }
+
     // Virtuous Scenario mode
     if (settings.mode === 'virtuous_scenario') {
       const vsPool = shuffleArray(VIRTUOUS_SCENARIOS).slice(0, settings.numQuestions).map((item, i) => ({
