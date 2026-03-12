@@ -4,7 +4,6 @@ import { getCategories } from './data/categories'
 import WHO_SAID_IT from './data/whoSaidIt'
 import SCENARIOS from './data/scenarios'
 import { VIRTUOUS_QUESTIONS, VIRTUOUS_SCENARIOS, VIRTUOUS_FILL_INS } from './data/virtuous'
-import EMOJI_STORIES from './data/emojiGame'
 import SCRIPTURE_MATCHES from './data/scriptureMatch'
 import ParticleBackground from './components/ParticleBackground'
 import HomeScreen from './components/HomeScreen'
@@ -15,7 +14,6 @@ import MemoryGameScreen from './components/MemoryGameScreen'
 import SurvivalScreen from './components/SurvivalScreen'
 import SpeedRoundScreen from './components/SpeedRoundScreen'
 import ScriptureMatchScreen from './components/ScriptureMatchScreen'
-import EmojiGameScreen from './components/EmojiGameScreen'
 import LeaderboardScreen from './components/LeaderboardScreen'
 import ProfileScreen from './components/ProfileScreen'
 import DuelScreen from './components/DuelScreen'
@@ -70,7 +68,6 @@ export default function App() {
     if (settings.mode === 'survival') { setScreen('survival'); return }
     if (settings.mode === 'speed') { setScreen('speed'); return }
     if (settings.mode === 'match') { setScreen('match'); return }
-    if (settings.mode === 'emoji') { setScreen('emoji'); return }
 
     // Virtuous Woman mode
     if (settings.mode === 'virtuous') {
@@ -428,15 +425,6 @@ export default function App() {
     goHome()
   }, [awardXP, goHome, syncToFirestore])
 
-  const onEmojiEnd = useCallback((score, total) => {
-    addDailyProgress(total)
-    saveSessions({ mode: 'emoji', score, total, pct: total > 0 ? Math.round((score / total) * 100) : 0, timeSeconds: 0 })
-    updateStreak()
-    awardXP(score, total)
-    syncToFirestore()
-    goHome()
-  }, [awardXP, goHome, syncToFirestore])
-
   const startQOTD = useCallback((question) => {
     const state = {
       mode: 'mc',
@@ -499,9 +487,6 @@ export default function App() {
       )}
       {screen === 'match' && (
         <ScriptureMatchScreen matches={SCRIPTURE_MATCHES} onEnd={onMatchEnd} onBack={goHome} />
-      )}
-      {screen === 'emoji' && (
-        <EmojiGameScreen stories={EMOJI_STORIES} onEnd={onEmojiEnd} onBack={goHome} />
       )}
       {screen === 'leaderboard' && (
         <LeaderboardScreen onBack={goHome} currentUid={user?.uid} />

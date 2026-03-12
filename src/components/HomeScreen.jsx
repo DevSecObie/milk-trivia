@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Smile, Crown, Award, Shield, User, LogIn, Swords } from 'lucide-react'
+import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Crown, Award, Shield, User, LogIn, Swords } from 'lucide-react'
 import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress, getXP, RANKS, checkAchievements, getSurvivalBest, getSpeedBest } from '../lib/storage'
 import { signInAsGuest, signInWithGoogle } from '../lib/authService'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
@@ -22,7 +22,6 @@ const modes = [
   { id: 'quotecomplete', icon: Quote, label: 'Quote Complete', desc: 'Finish the verse', group: 'bible' },
   { id: 'catrush', icon: Rocket, label: 'Category Rush', desc: 'Topical speed round', group: 'bible' },
   { id: 'memory', icon: Brain, label: 'Bible Memory', desc: 'Learn book order', group: 'bible' },
-  { id: 'emoji', icon: Smile, label: 'Emoji Quiz', desc: 'Guess the Bible story', group: 'bible' },
   { id: 'match', icon: Link2, label: 'Scripture Match', desc: 'Connect verses to refs', group: 'bible' },
   { id: 'virtuous', icon: Crown, label: 'Virtuous Woman', desc: 'Proverbs 31 & Titus 2', group: 'bible' },
   { id: 'virtuous_fillin', icon: TextCursorInput, label: 'Sisters Fill In', desc: 'Complete the verse', group: 'bible' },
@@ -352,7 +351,7 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
 
       <button onClick={mode === 'memory' ? onMemoryGame : mode === 'mock' ? handleMockExam : mode === 'levelup' ? handleLevelUp : handleStart}
         style={{ ...s.startBtn, ...(modes.find(m => m.id === mode)?.group === 'bible' ? { background: 'linear-gradient(135deg, var(--accent), #D97706)', boxShadow: '0 0 25px rgba(251,191,36,0.2)' } : {}), ...(mode === 'survival' ? { background: 'linear-gradient(135deg, var(--red), #DC2626)', boxShadow: '0 0 25px rgba(255,51,102,0.2)' } : {}), ...(mode === 'speed' ? { background: 'linear-gradient(135deg, var(--accent), var(--cyan))', boxShadow: '0 0 25px rgba(251,191,36,0.2)' } : {}) }}>
-        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : mode === 'survival' ? 'START SURVIVAL' : mode === 'speed' ? 'START SPEED ROUND' : mode === 'match' ? 'START SCRIPTURE MATCH' : mode === 'emoji' ? 'START EMOJI QUIZ' : mode === 'virtuous' ? 'START VIRTUOUS WOMAN' : mode === 'virtuous_fillin' ? 'START SISTERS FILL IN' : mode === 'virtuous_scenario' ? 'START SISTERS SCENARIO' : mode === 'catrush' ? 'START CATEGORY RUSH' : 'START GAME'}
+        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : mode === 'survival' ? 'START SURVIVAL' : mode === 'speed' ? 'START SPEED ROUND' : mode === 'match' ? 'START SCRIPTURE MATCH' : mode === 'virtuous' ? 'START VIRTUOUS WOMAN' : mode === 'virtuous_fillin' ? 'START SISTERS FILL IN' : mode === 'virtuous_scenario' ? 'START SISTERS SCENARIO' : mode === 'catrush' ? 'START CATEGORY RUSH' : 'START GAME'}
       </button>
 
       <a href={`${import.meta.env.BASE_URL}240_Milk_Questions.pdf`} download style={s.dlLink}>
