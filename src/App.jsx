@@ -16,7 +16,12 @@ import SurvivalScreen from './components/SurvivalScreen'
 import SpeedRoundScreen from './components/SpeedRoundScreen'
 import ScriptureMatchScreen from './components/ScriptureMatchScreen'
 import EmojiGameScreen from './components/EmojiGameScreen'
-import { getActiveGame, clearActiveGame, saveActiveGame, getTheme, setThemePref, saveSettings, getMissed, getWeightedQuestions, updateStreak, saveSessions, recordQuestionResult, addMissed, removeMissed, addDailyProgress, updateLevelUp, markQOTDAnswered, addXP, getXPForAction, checkAchievements, setSurvivalBest, setSpeedBest } from './lib/storage'
+import LeaderboardScreen from './components/LeaderboardScreen'
+import ProfileScreen from './components/ProfileScreen'
+import DuelScreen from './components/DuelScreen'
+import { onAuthChange, logOut } from './lib/authService'
+import { syncStats } from './lib/firestoreService'
+import { getActiveGame, clearActiveGame, saveActiveGame, getTheme, setThemePref, saveSettings, getMissed, getWeightedQuestions, updateStreak, saveSessions, recordQuestionResult, addMissed, removeMissed, addDailyProgress, updateLevelUp, markQOTDAnswered, addXP, getXPForAction, checkAchievements, setSurvivalBest, setSpeedBest, getXP, getSurvivalBest, getSpeedBest, getStreak, getSessions } from './lib/storage'
 
 function shuffleArray(arr) {
   const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }; return a
@@ -31,11 +36,17 @@ export default function App() {
   const [screen, setScreen] = useState('home')
   const [gameState, setGameState] = useState(null)
   const [theme, setTheme] = useState(getTheme())
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     setThemePref(theme)
   }, [theme])
+
+  // Firebase auth listener
+  useEffect(() => {
+    return onAuthChange((u) => setUser(u))
+  }, [])
 
   // Check for active (resumable) game on mount
   const [resumeData, setResumeData] = useState(null)
@@ -330,14 +341,38 @@ export default function App() {
 
     // Award XP
     awardXP(score, answers.length)
+    syncToFirestore()
 
     setGameState(prev => ({ ...prev, answers, score, timeSeconds: elapsed }))
     setScreen('results')
-  }, [gameState, awardXP])
+  }, [gameState, awardXP, syncToFirestore])
+
+  // Sync local stats to Firestore
+  const syncToFirestore = useCallback(() => {
+    if (!user) return
+    const xp = getXP()
+    const sessions = getSessions()
+    const totalAnswered = sessions.reduce((s, x) => s + x.total, 0)
+    const totalCorrect = sessions.reduce((s, x) => s + x.score, 0)
+    const streak = getStreak()
+    syncStats(user.uid, {
+      xp: xp.total, level: xp.level, title: xp.title,
+      totalAnswered, totalCorrect,
+      streak: streak.current,
+      survivalBest: getSurvivalBest(),
+      speedBest: getSpeedBest(),
+      achievements: checkAchievements().unlocked,
+      displayName: user.displayName || 'Anonymous',
+    }).catch(() => {})
+  }, [user])
 
   const goHome = useCallback(() => { setScreen('home'); setGameState(null) }, [])
   const goStats = useCallback(() => setScreen('stats'), [])
   const goMemory = useCallback(() => setScreen('memory'), [])
+  const goLeaderboard = useCallback(() => setScreen('leaderboard'), [])
+  const goProfile = useCallback(() => setScreen('profile'), [])
+  const goDuel = useCallback(() => setScreen('duel'), [])
+  const handleLogout = useCallback(async () => { await logOut(); goHome() }, [goHome])
 
   const onSurvivalEnd = useCallback((score) => {
     setSurvivalBest(score)
@@ -345,8 +380,9 @@ export default function App() {
     saveSessions({ mode: 'survival', score, total: score, pct: 100, timeSeconds: 0 })
     updateStreak()
     awardXP(score, score)
+    syncToFirestore()
     goHome()
-  }, [awardXP, goHome])
+  }, [awardXP, goHome, syncToFirestore])
 
   const onSpeedEnd = useCallback((points, correct, total) => {
     setSpeedBest(correct)
@@ -354,24 +390,27 @@ export default function App() {
     saveSessions({ mode: 'speed', score: correct, total, pct: total > 0 ? Math.round((correct / total) * 100) : 0, timeSeconds: 60 })
     updateStreak()
     awardXP(correct, total)
+    syncToFirestore()
     goHome()
-  }, [awardXP, goHome])
+  }, [awardXP, goHome, syncToFirestore])
 
   const onMatchEnd = useCallback((score) => {
     addDailyProgress(score)
     saveSessions({ mode: 'match', score, total: score, pct: 100, timeSeconds: 0 })
     updateStreak()
     awardXP(score, score)
+    syncToFirestore()
     goHome()
-  }, [awardXP, goHome])
+  }, [awardXP, goHome, syncToFirestore])
 
   const onEmojiEnd = useCallback((score, total) => {
     addDailyProgress(total)
     saveSessions({ mode: 'emoji', score, total, pct: total > 0 ? Math.round((score / total) * 100) : 0, timeSeconds: 0 })
     updateStreak()
     awardXP(score, total)
+    syncToFirestore()
     goHome()
-  }, [awardXP, goHome])
+  }, [awardXP, goHome, syncToFirestore])
 
   const startQOTD = useCallback((question) => {
     const state = {
@@ -402,6 +441,10 @@ export default function App() {
           theme={theme}
           setTheme={setTheme}
           allQuestions={ALL_Q}
+          user={user}
+          onLeaderboard={goLeaderboard}
+          onProfile={goProfile}
+          onDuel={goDuel}
         />
       )}
       {screen === 'game' && gameState && (
@@ -434,6 +477,15 @@ export default function App() {
       )}
       {screen === 'emoji' && (
         <EmojiGameScreen stories={EMOJI_STORIES} onEnd={onEmojiEnd} onBack={goHome} />
+      )}
+      {screen === 'leaderboard' && (
+        <LeaderboardScreen onBack={goHome} currentUid={user?.uid} />
+      )}
+      {screen === 'profile' && user && (
+        <ProfileScreen onBack={goHome} user={user} onLogout={handleLogout} />
+      )}
+      {screen === 'duel' && user && (
+        <DuelScreen onBack={goHome} user={user} allQuestions={ALL_Q} />
       )}
     </>
   )

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Smile, Crown, Award, Shield } from 'lucide-react'
+import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Smile, Crown, Award, Shield, User, LogIn, Swords } from 'lucide-react'
 import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress, getXP, RANKS, checkAchievements, getSurvivalBest, getSpeedBest } from '../lib/storage'
+import { signInAsGuest, signInWithGoogle } from '../lib/authService'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
 
 const modes = [
@@ -34,7 +35,7 @@ const ranges = [
 ]
 const counts = [10, 20, 30, 50, 100, 240]
 
-export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, resumeData, onResume, onDismissResume, theme, setTheme, allQuestions }) {
+export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, resumeData, onResume, onDismissResume, theme, setTheme, allQuestions, user, onLeaderboard, onProfile, onDuel }) {
   const saved = getSettings()
   const [mode, setMode] = useState(saved.mode || 'mc')
   const [numQ, setNumQ] = useState(saved.numQuestions || 50)
@@ -45,6 +46,7 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
   const [selectedCats, setSelectedCats] = useState(saved.categories || [])
   const [dailyGoalVal, setDailyGoalVal] = useState(getDailyGoal())
   const [showGoalPicker, setShowGoalPicker] = useState(false)
+  const [signingIn, setSigningIn] = useState(false)
   const streak = getStreak()
   const missedCount = getMissed().length
   const sessions = getSessions()
@@ -90,18 +92,42 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
   }
 
   const toggleSound = () => { const v = !sound; setSound(v); setSoundPref(v) }
+  const handleSignInGoogle = async () => { setSigningIn(true); try { await signInWithGoogle() } catch {} setSigningIn(false) }
+  const handleSignInGuest = async () => { setSigningIn(true); try { await signInAsGuest() } catch {} setSigningIn(false) }
   const isDark = theme === 'dark'
 
   return (
     <div style={s.container} className="animate-in">
       {/* Top controls */}
       <div style={s.topControls}>
-        <button onClick={onStats} style={s.iconBtn}><BarChart2 size={18} /></button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={onStats} style={s.iconBtn}><BarChart2 size={18} /></button>
+          <button onClick={onLeaderboard} style={s.iconBtn} title="Leaderboard"><Trophy size={18} /></button>
+        </div>
         <div style={s.topRight}>
+          {user && <button onClick={onProfile} style={s.iconBtn} title="Profile"><User size={18} /></button>}
           <button onClick={toggleSound} style={s.iconBtn}>{sound ? <Volume2 size={18} /> : <VolumeX size={18} />}</button>
           <button onClick={() => setTheme(isDark ? 'light' : 'dark')} style={s.iconBtn}>{isDark ? <Sun size={18} /> : <Moon size={18} />}</button>
         </div>
       </div>
+
+      {/* Auth / Sign In */}
+      {!user ? (
+        <div style={s.authCard}>
+          <LogIn size={16} style={{ color: 'var(--cyan)' }} />
+          <span style={s.authText}>Sign in to compete on leaderboards & duel</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={handleSignInGoogle} disabled={signingIn} style={s.authBtn}>Google</button>
+            <button onClick={handleSignInGuest} disabled={signingIn} style={s.authBtnSec}>Guest</button>
+          </div>
+        </div>
+      ) : (
+        <div style={s.authCard}>
+          <div style={s.userAvatar}>{user.photoURL ? <img src={user.photoURL} alt="" style={s.userAvatarImg} /> : <span>{(user.displayName || 'A')[0].toUpperCase()}</span>}</div>
+          <span style={s.authText}>{user.displayName || 'Anonymous'}</span>
+          <button onClick={onDuel} style={s.duelNavBtn}><Swords size={14} /> Duel</button>
+        </div>
+      )}
 
       {/* Header */}
       <header style={s.header}>
@@ -416,4 +442,12 @@ const s = {
   achBadge: { display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, fontSize: 10 },
   achName: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 600, color: 'var(--text-sec)', letterSpacing: 0.5 },
   achMore: { display: 'flex', alignItems: 'center', padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16 },
+  // Auth styles
+  authCard: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: 14, flexWrap: 'wrap' },
+  authText: { fontSize: 12, fontWeight: 600, color: 'var(--text-sec)', flex: 1, minWidth: 100 },
+  authBtn: { padding: '6px 14px', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: '#fff', background: 'var(--cyan)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
+  authBtnSec: { padding: '6px 14px', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: 'var(--text-sec)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
+  userAvatar: { width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), #D97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-display)', color: '#fff', flexShrink: 0, overflow: 'hidden' },
+  userAvatarImg: { width: 28, height: 28, borderRadius: '50%' },
+  duelNavBtn: { display: 'flex', alignItems: 'center', gap: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: 'var(--accent)', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
 }
