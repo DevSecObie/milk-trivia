@@ -301,6 +301,25 @@ export default function App() {
     saveActiveGame(state)
   }, [])
 
+  // Sync local stats to Firestore
+  const syncToFirestore = useCallback(() => {
+    if (!user) return
+    const xp = getXP()
+    const sessions = getSessions()
+    const totalAnswered = sessions.reduce((s, x) => s + x.total, 0)
+    const totalCorrect = sessions.reduce((s, x) => s + x.score, 0)
+    const streak = getStreak()
+    syncStats(user.uid, {
+      xp: xp.total, level: xp.level, title: xp.title,
+      totalAnswered, totalCorrect,
+      streak: streak.current,
+      survivalBest: getSurvivalBest(),
+      speedBest: getSpeedBest(),
+      achievements: checkAchievements().unlocked,
+      displayName: user.displayName || 'Anonymous',
+    }).catch(() => {})
+  }, [user])
+
   const endGame = useCallback((answers, score) => {
     clearActiveGame()
     const elapsed = gameState ? Math.round((Date.now() - gameState.startTime) / 1000) : 0
@@ -346,25 +365,6 @@ export default function App() {
     setGameState(prev => ({ ...prev, answers, score, timeSeconds: elapsed }))
     setScreen('results')
   }, [gameState, awardXP, syncToFirestore])
-
-  // Sync local stats to Firestore
-  const syncToFirestore = useCallback(() => {
-    if (!user) return
-    const xp = getXP()
-    const sessions = getSessions()
-    const totalAnswered = sessions.reduce((s, x) => s + x.total, 0)
-    const totalCorrect = sessions.reduce((s, x) => s + x.score, 0)
-    const streak = getStreak()
-    syncStats(user.uid, {
-      xp: xp.total, level: xp.level, title: xp.title,
-      totalAnswered, totalCorrect,
-      streak: streak.current,
-      survivalBest: getSurvivalBest(),
-      speedBest: getSpeedBest(),
-      achievements: checkAchievements().unlocked,
-      displayName: user.displayName || 'Anonymous',
-    }).catch(() => {})
-  }, [user])
 
   const goHome = useCallback(() => { setScreen('home'); setGameState(null) }, [])
   const goStats = useCallback(() => setScreen('stats'), [])
