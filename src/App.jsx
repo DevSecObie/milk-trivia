@@ -51,6 +51,7 @@ export default function App() {
           n: i + 1, q: `"${item.quote}"`, a: item.speaker,
           options: shuffleArray([item.speaker, ...item.wrong]),
           ref: item.ref, bibleMode: 'whosaid',
+          verses: [{ ref: item.ref, text: item.quote }],
         }))
       } else if (mode === 'scenario') {
         biblePool = shuffleArray(SCENARIOS).slice(0, settings.numQuestions).map((item, i) => ({
@@ -58,6 +59,7 @@ export default function App() {
           correctText: item.correctText,
           options: shuffleArray([item.correctRef, ...item.wrongRefs]),
           bibleMode: 'scenario',
+          verses: [{ ref: item.correctRef, text: item.correctText }],
         }))
       } else if (mode === 'guessbook') {
         const withVerses = ALL_Q.filter(q => q.verses && q.verses.length > 0)
@@ -71,6 +73,7 @@ export default function App() {
             n: i + 1, q: verseText.substring(0, 200) + (verseText.length > 200 ? '...' : ''),
             a: correctBook, options: shuffleArray([correctBook, ...wrongBooks]),
             ref: verse.ref, bibleMode: 'guessbook',
+            verses: [{ ref: verse.ref, text: verse.text.replace(/\[\d+\]\s*/g, '') }],
           }
         })
       } else if (mode === 'quotecomplete') {
@@ -97,6 +100,7 @@ export default function App() {
             n: i + 1, q: prompt, a: blankedWords,
             options: shuffleArray([blankedWords, ...wrongOptions]),
             ref: verse.ref, bibleMode: 'quotecomplete',
+            verses: [{ ref: verse.ref, text: text }],
           }
         })
       } else if (mode === 'catrush') {

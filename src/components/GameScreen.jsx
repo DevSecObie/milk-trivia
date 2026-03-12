@@ -176,8 +176,7 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
             <span style={st.optTxt}>{opt}</span></button>)
         })}</div>
         <Feedback correct={correct} answer={!correct&&submitted?q.a:null}/>
-        {submitted&&q.ref&&<div style={st.blankRef}>📖 {q.ref}</div>}
-        {submitted&&q.correctText&&<div style={st.blankVerse}>{q.correctText}</div>}
+        {submitted&&q.verses&&<VerseBlock verses={q.verses} defaultOpen={true}/>}
         <div style={st.actionRow}>
           {submitted&&<button onClick={nextQuestion} style={st.btnP}>{idx+1>=total?'Finish':'Next'} <ArrowRight size={16}/></button>}
         </div>
