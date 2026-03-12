@@ -11,6 +11,11 @@ const KEYS = {
   DAILY_PROGRESS: 'mq_daily_progress',
   QOTD_HISTORY: 'mq_qotd_history',
   LEVEL_UP: 'mq_level_up',
+  XP: 'mq_xp',
+  ACHIEVEMENTS: 'mq_achievements',
+  SURVIVAL_BEST: 'mq_survival_best',
+  SPEED_BEST: 'mq_speed_best',
+  DAILY_GOAL_DAYS: 'mq_daily_goal_days',
 }
 
 function get(key, fallback = null) {
@@ -242,6 +247,125 @@ export function getCategoryMastery(questionStats, allQuestions) {
     })
   })
   return catStats
+}
+
+// ===== XP / RANK / LEVELS =====
+export function getXP() {
+  return get(KEYS.XP, { total: 0, level: 1, title: 'Beginner' })
+}
+
+const RANKS = [
+  { level: 1, title: 'Beginner', xpNeeded: 0 },
+  { level: 2, title: 'Student', xpNeeded: 100 },
+  { level: 3, title: 'Learner', xpNeeded: 300 },
+  { level: 4, title: 'Scholar', xpNeeded: 600 },
+  { level: 5, title: 'Disciple', xpNeeded: 1000 },
+  { level: 6, title: 'Teacher', xpNeeded: 1500 },
+  { level: 7, title: 'Elder', xpNeeded: 2200 },
+  { level: 8, title: 'Scribe', xpNeeded: 3000 },
+  { level: 9, title: 'Prophet', xpNeeded: 4000 },
+  { level: 10, title: 'Apostle', xpNeeded: 5500 },
+  { level: 11, title: 'Evangelist', xpNeeded: 7500 },
+  { level: 12, title: 'Shepherd', xpNeeded: 10000 },
+  { level: 13, title: 'Watchman', xpNeeded: 13000 },
+  { level: 14, title: 'Priest', xpNeeded: 17000 },
+  { level: 15, title: 'High Priest', xpNeeded: 22000 },
+]
+
+export function addXP(amount) {
+  const xp = get(KEYS.XP, { total: 0, level: 1, title: 'Beginner' })
+  xp.total += amount
+  // Determine level
+  let newRank = RANKS[0]
+  for (const r of RANKS) {
+    if (xp.total >= r.xpNeeded) newRank = r
+    else break
+  }
+  const leveledUp = newRank.level > xp.level
+  xp.level = newRank.level
+  xp.title = newRank.title
+  set(KEYS.XP, xp)
+  return { ...xp, leveledUp, nextRank: RANKS[newRank.level] || null }
+}
+
+export function getXPForAction(action) {
+  const xpMap = {
+    correct: 10, incorrect: 2, perfectGame: 50, streak3: 15, streak5: 30, streak10: 75,
+    dailyGoal: 40, survivalRecord: 100, speedRound: 25, firstGame: 50,
+  }
+  return xpMap[action] || 0
+}
+
+export { RANKS }
+
+// ===== ACHIEVEMENTS =====
+const ACHIEVEMENT_DEFS = [
+  { id: 'first_game', name: 'First Steps', desc: 'Complete your first quiz', icon: '🏁', check: (s) => s.sessions.length >= 1 },
+  { id: 'ten_games', name: 'Dedicated', desc: 'Complete 10 quizzes', icon: '📚', check: (s) => s.sessions.length >= 10 },
+  { id: 'fifty_games', name: 'Scholar', desc: 'Complete 50 quizzes', icon: '🎓', check: (s) => s.sessions.length >= 50 },
+  { id: 'hundred_qs', name: 'Century', desc: 'Answer 100 questions', icon: '💯', check: (s) => s.totalAnswered >= 100 },
+  { id: 'five_hundred_qs', name: 'Warrior', desc: 'Answer 500 questions', icon: '⚔', check: (s) => s.totalAnswered >= 500 },
+  { id: 'thousand_qs', name: 'Mighty', desc: 'Answer 1000 questions', icon: '🏆', check: (s) => s.totalAnswered >= 1000 },
+  { id: 'perfect_10', name: 'Perfect 10', desc: 'Score 100% on a 10+ question quiz', icon: '✨', check: (s) => s.sessions.some(x => x.pct === 100 && x.total >= 10) },
+  { id: 'streak_7', name: 'Week Warrior', desc: '7-day study streak', icon: '🔥', check: (s) => s.streak.best >= 7 },
+  { id: 'streak_30', name: 'Monthly Master', desc: '30-day study streak', icon: '🌟', check: (s) => s.streak.best >= 30 },
+  { id: 'survival_10', name: 'Survivor', desc: 'Answer 10 in Survival Mode', icon: '🛡', check: (s) => s.survivalBest >= 10 },
+  { id: 'survival_25', name: 'Iron Will', desc: 'Answer 25 in Survival Mode', icon: '💪', check: (s) => s.survivalBest >= 25 },
+  { id: 'speed_20', name: 'Lightning', desc: 'Answer 20+ in Speed Round', icon: '⚡', check: (s) => s.speedBest >= 20 },
+  { id: 'all_modes', name: 'Explorer', desc: 'Play every game mode', icon: '🗺', check: (s) => s.modesPlayed.size >= 8 },
+  { id: 'daily_goal_5', name: 'Consistent', desc: 'Hit daily goal 5 days', icon: '📅', check: (s) => s.dailyGoalDays >= 5 },
+  { id: 'level_5', name: 'Rising Star', desc: 'Reach level 5', icon: '⭐', check: (s) => s.xpLevel >= 5 },
+  { id: 'level_10', name: 'Pillar', desc: 'Reach level 10', icon: '🏛', check: (s) => s.xpLevel >= 10 },
+  { id: 'mock_pass', name: 'Exam Ready', desc: 'Score 80%+ on Mock Exam', icon: '📝', check: (s) => s.sessions.some(x => x.mode === 'mock' && x.pct >= 80) },
+  { id: 'no_missed', name: 'Clean Slate', desc: 'Clear all missed questions', icon: '✅', check: (s) => s.hadMissed && s.missedCount === 0 },
+]
+
+export function getAchievements() {
+  return get(KEYS.ACHIEVEMENTS, []) // array of achievement ids
+}
+
+export function checkAchievements() {
+  const unlocked = get(KEYS.ACHIEVEMENTS, [])
+  const sessions = getSessions()
+  const streak = getStreak()
+  const xp = getXP()
+  const missed = getMissed()
+
+  const stats = {
+    sessions,
+    totalAnswered: sessions.reduce((s, x) => s + x.total, 0),
+    streak,
+    xpLevel: xp.level,
+    missedCount: missed.length,
+    hadMissed: sessions.length > 0,
+    survivalBest: get(KEYS.SURVIVAL_BEST, 0),
+    speedBest: get(KEYS.SPEED_BEST, 0),
+    modesPlayed: new Set(sessions.map(s => s.mode)),
+    dailyGoalDays: get(KEYS.DAILY_GOAL_DAYS, 0),
+  }
+
+  const newlyUnlocked = []
+  for (const ach of ACHIEVEMENT_DEFS) {
+    if (!unlocked.includes(ach.id) && ach.check(stats)) {
+      unlocked.push(ach.id)
+      newlyUnlocked.push(ach)
+    }
+  }
+
+  if (newlyUnlocked.length > 0) {
+    set(KEYS.ACHIEVEMENTS, unlocked)
+  }
+
+  return { unlocked, newlyUnlocked, all: ACHIEVEMENT_DEFS }
+}
+
+export function getSurvivalBest() { return get(KEYS.SURVIVAL_BEST, 0) }
+export function setSurvivalBest(val) { const cur = get(KEYS.SURVIVAL_BEST, 0); if (val > cur) set(KEYS.SURVIVAL_BEST, val) }
+export function getSpeedBest() { return get(KEYS.SPEED_BEST, 0) }
+export function setSpeedBest(val) { const cur = get(KEYS.SPEED_BEST, 0); if (val > cur) set(KEYS.SPEED_BEST, val) }
+export function incrementDailyGoalDays() {
+  const days = get(KEYS.DAILY_GOAL_DAYS, 0)
+  set(KEYS.DAILY_GOAL_DAYS, days + 1)
 }
 
 // ===== CLEAR ALL =====

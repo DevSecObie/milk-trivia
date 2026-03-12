@@ -158,13 +158,14 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
     </>)}
 
     // Bible game modes (guessbook, whosaid, scenario, quotecomplete)
-    if(['guessbook','whosaid','scenario','quotecomplete'].includes(mode)&&q.options){
+    if(['guessbook','whosaid','scenario','quotecomplete','virtuous'].includes(mode)&&q.options){
       const cSet=new Set([q.a])
       return(<>
         {mode==='guessbook'&&<div style={st.hint}>Which book is this verse from?</div>}
         {mode==='whosaid'&&<div style={st.hint}>Who said this?</div>}
         {mode==='scenario'&&<div style={st.hint}>Which scripture applies?</div>}
         {mode==='quotecomplete'&&<div style={st.hint}>Complete the verse</div>}
+        {mode==='virtuous'&&<div style={st.hint}>Proverbs 31 & Titus 2</div>}
         <div style={st.optGrid}>{q.options.map((opt,i)=>{
           const isC=cSet.has(opt),isSel=selected.has(opt)
           let ss={}
@@ -176,8 +177,7 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
             <span style={st.optTxt}>{opt}</span></button>)
         })}</div>
         <Feedback correct={correct} answer={!correct&&submitted?q.a:null}/>
-        {submitted&&q.ref&&<div style={st.blankRef}>📖 {q.ref}</div>}
-        {submitted&&q.correctText&&<div style={st.blankVerse}>{q.correctText}</div>}
+        {submitted&&q.verses&&<VerseBlock verses={q.verses} defaultOpen={true}/>}
         <div style={st.actionRow}>
           {submitted&&<button onClick={nextQuestion} style={st.btnP}>{idx+1>=total?'Finish':'Next'} <ArrowRight size={16}/></button>}
         </div>
@@ -238,7 +238,7 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
     </>)
   }
 
-  const mLabels={mc:isMulti?`MULTIPLE CHOICE — SELECT ${q.refs.length}`:'MULTIPLE CHOICE',type:'TYPE YOUR ANSWER',flash:'FLASHCARD',timed:isMulti?`TIMED — SELECT ${q.refs.length}`:'TIMED QUIZ',fillin:'FILL IN THE BLANK',guessbook:'GUESS THE BOOK',whosaid:'WHO SAID IT?',scenario:'SCENARIO MODE',quotecomplete:'QUOTE COMPLETION'}
+  const mLabels={mc:isMulti?`MULTIPLE CHOICE — SELECT ${q.refs.length}`:'MULTIPLE CHOICE',type:'TYPE YOUR ANSWER',flash:'FLASHCARD',timed:isMulti?`TIMED — SELECT ${q.refs.length}`:'TIMED QUIZ',fillin:'FILL IN THE BLANK',guessbook:'GUESS THE BOOK',whosaid:'WHO SAID IT?',scenario:'SCENARIO MODE',quotecomplete:'QUOTE COMPLETION',virtuous:'VIRTUOUS WOMAN'}
 
   return(<div style={st.container}>
     <div style={st.topBar}><div style={st.topL}>

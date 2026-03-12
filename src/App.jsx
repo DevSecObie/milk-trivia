@@ -3,13 +3,25 @@ import questions from './data/questions.json'
 import { getCategories } from './data/categories'
 import WHO_SAID_IT from './data/whoSaidIt'
 import SCENARIOS from './data/scenarios'
+import { VIRTUOUS_QUESTIONS, VIRTUOUS_SCENARIOS, VIRTUOUS_FILL_INS } from './data/virtuous'
+import EMOJI_STORIES from './data/emojiGame'
+import SCRIPTURE_MATCHES from './data/scriptureMatch'
 import ParticleBackground from './components/ParticleBackground'
 import HomeScreen from './components/HomeScreen'
 import GameScreen from './components/GameScreen'
 import ResultsScreen from './components/ResultsScreen'
 import StatsScreen from './components/StatsScreen'
 import MemoryGameScreen from './components/MemoryGameScreen'
-import { getActiveGame, clearActiveGame, saveActiveGame, getTheme, setThemePref, saveSettings, getMissed, getWeightedQuestions, updateStreak, saveSessions, recordQuestionResult, addMissed, removeMissed, addDailyProgress, updateLevelUp, markQOTDAnswered } from './lib/storage'
+import SurvivalScreen from './components/SurvivalScreen'
+import SpeedRoundScreen from './components/SpeedRoundScreen'
+import ScriptureMatchScreen from './components/ScriptureMatchScreen'
+import EmojiGameScreen from './components/EmojiGameScreen'
+import LeaderboardScreen from './components/LeaderboardScreen'
+import ProfileScreen from './components/ProfileScreen'
+import DuelScreen from './components/DuelScreen'
+import { onAuthChange, logOut } from './lib/authService'
+import { syncStats } from './lib/firestoreService'
+import { getActiveGame, clearActiveGame, saveActiveGame, getTheme, setThemePref, saveSettings, getMissed, getWeightedQuestions, updateStreak, saveSessions, recordQuestionResult, addMissed, removeMissed, addDailyProgress, updateLevelUp, markQOTDAnswered, addXP, getXPForAction, checkAchievements, setSurvivalBest, setSpeedBest, getXP, getSurvivalBest, getSpeedBest, getStreak, getSessions } from './lib/storage'
 
 function shuffleArray(arr) {
   const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }; return a
@@ -24,11 +36,17 @@ export default function App() {
   const [screen, setScreen] = useState('home')
   const [gameState, setGameState] = useState(null)
   const [theme, setTheme] = useState(getTheme())
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     setThemePref(theme)
   }, [theme])
+
+  // Firebase auth listener
+  useEffect(() => {
+    return onAuthChange((u) => setUser(u))
+  }, [])
 
   // Check for active (resumable) game on mount
   const [resumeData, setResumeData] = useState(null)
@@ -39,7 +57,64 @@ export default function App() {
     }
   }, [])
 
+  // XP + Achievements after any game ends
+  const awardXP = useCallback((score, total) => {
+    let xp = score * getXPForAction('correct') + (total - score) * getXPForAction('incorrect')
+    if (score === total && total >= 10) xp += getXPForAction('perfectGame')
+    addXP(xp)
+    checkAchievements()
+  }, [])
+
   const startGame = useCallback((settings) => {
+    // Standalone screen modes
+    if (settings.mode === 'survival') { setScreen('survival'); return }
+    if (settings.mode === 'speed') { setScreen('speed'); return }
+    if (settings.mode === 'match') { setScreen('match'); return }
+    if (settings.mode === 'emoji') { setScreen('emoji'); return }
+
+    // Virtuous Woman mode
+    if (settings.mode === 'virtuous') {
+      const vPool = shuffleArray(VIRTUOUS_QUESTIONS).slice(0, settings.numQuestions).map((item, i) => ({
+        n: i + 1, q: item.q, a: item.a,
+        options: shuffleArray([item.a, ...item.wrong]),
+        ref: item.ref, bibleMode: 'virtuous',
+        verses: [{ ref: item.ref, text: item.verse }],
+      }))
+      if (vPool.length === 0) return alert('Not enough data!')
+      const state = {
+        mode: 'virtuous', questions: vPool, confirmBeforeSubmit: false,
+        idx: 0, score: 0, answers: [], startTime: Date.now(),
+      }
+      setGameState(state)
+      saveActiveGame(state)
+      setResumeData(null)
+      setScreen('game')
+      saveSettings(settings)
+      return
+    }
+
+    // Virtuous Scenario mode
+    if (settings.mode === 'virtuous_scenario') {
+      const vsPool = shuffleArray(VIRTUOUS_SCENARIOS).slice(0, settings.numQuestions).map((item, i) => ({
+        n: i + 1, q: item.scenario, a: item.correctRef,
+        correctText: item.correctText,
+        options: shuffleArray([item.correctRef, ...item.wrongRefs]),
+        bibleMode: 'scenario',
+        verses: [{ ref: item.correctRef, text: item.correctText }],
+      }))
+      if (vsPool.length === 0) return alert('Not enough data!')
+      const state = {
+        mode: 'scenario', questions: vsPool, confirmBeforeSubmit: false,
+        idx: 0, score: 0, answers: [], startTime: Date.now(),
+      }
+      setGameState(state)
+      saveActiveGame(state)
+      setResumeData(null)
+      setScreen('game')
+      saveSettings(settings)
+      return
+    }
+
     // Bible game modes use separate data
     const bibleModes = ['guessbook', 'whosaid', 'scenario', 'quotecomplete', 'catrush']
     if (bibleModes.includes(settings.mode)) {
@@ -51,6 +126,7 @@ export default function App() {
           n: i + 1, q: `"${item.quote}"`, a: item.speaker,
           options: shuffleArray([item.speaker, ...item.wrong]),
           ref: item.ref, bibleMode: 'whosaid',
+          verses: [{ ref: item.ref, text: item.quote }],
         }))
       } else if (mode === 'scenario') {
         biblePool = shuffleArray(SCENARIOS).slice(0, settings.numQuestions).map((item, i) => ({
@@ -58,6 +134,7 @@ export default function App() {
           correctText: item.correctText,
           options: shuffleArray([item.correctRef, ...item.wrongRefs]),
           bibleMode: 'scenario',
+          verses: [{ ref: item.correctRef, text: item.correctText }],
         }))
       } else if (mode === 'guessbook') {
         const withVerses = ALL_Q.filter(q => q.verses && q.verses.length > 0)
@@ -71,6 +148,7 @@ export default function App() {
             n: i + 1, q: verseText.substring(0, 200) + (verseText.length > 200 ? '...' : ''),
             a: correctBook, options: shuffleArray([correctBook, ...wrongBooks]),
             ref: verse.ref, bibleMode: 'guessbook',
+            verses: [{ ref: verse.ref, text: verse.text.replace(/\[\d+\]\s*/g, '') }],
           }
         })
       } else if (mode === 'quotecomplete') {
@@ -97,6 +175,7 @@ export default function App() {
             n: i + 1, q: prompt, a: blankedWords,
             options: shuffleArray([blankedWords, ...wrongOptions]),
             ref: verse.ref, bibleMode: 'quotecomplete',
+            verses: [{ ref: verse.ref, text: text }],
           }
         })
       } else if (mode === 'catrush') {
@@ -227,7 +306,7 @@ export default function App() {
     const elapsed = gameState ? Math.round((Date.now() - gameState.startTime) / 1000) : 0
 
     // Record per-question stats + missed bank (only for milk question modes)
-    const isBibleMode = ['guessbook', 'whosaid', 'scenario', 'quotecomplete'].includes(gameState?.mode)
+    const isBibleMode = ['guessbook', 'whosaid', 'scenario', 'quotecomplete', 'virtuous'].includes(gameState?.mode)
     answers.forEach(a => {
       if (!isBibleMode && a.q.n) {
         recordQuestionResult(a.q.n, a.correct)
@@ -260,13 +339,78 @@ export default function App() {
     // Update streak
     updateStreak()
 
+    // Award XP
+    awardXP(score, answers.length)
+    syncToFirestore()
+
     setGameState(prev => ({ ...prev, answers, score, timeSeconds: elapsed }))
     setScreen('results')
-  }, [gameState])
+  }, [gameState, awardXP, syncToFirestore])
+
+  // Sync local stats to Firestore
+  const syncToFirestore = useCallback(() => {
+    if (!user) return
+    const xp = getXP()
+    const sessions = getSessions()
+    const totalAnswered = sessions.reduce((s, x) => s + x.total, 0)
+    const totalCorrect = sessions.reduce((s, x) => s + x.score, 0)
+    const streak = getStreak()
+    syncStats(user.uid, {
+      xp: xp.total, level: xp.level, title: xp.title,
+      totalAnswered, totalCorrect,
+      streak: streak.current,
+      survivalBest: getSurvivalBest(),
+      speedBest: getSpeedBest(),
+      achievements: checkAchievements().unlocked,
+      displayName: user.displayName || 'Anonymous',
+    }).catch(() => {})
+  }, [user])
 
   const goHome = useCallback(() => { setScreen('home'); setGameState(null) }, [])
   const goStats = useCallback(() => setScreen('stats'), [])
   const goMemory = useCallback(() => setScreen('memory'), [])
+  const goLeaderboard = useCallback(() => setScreen('leaderboard'), [])
+  const goProfile = useCallback(() => setScreen('profile'), [])
+  const goDuel = useCallback(() => setScreen('duel'), [])
+  const handleLogout = useCallback(async () => { await logOut(); goHome() }, [goHome])
+
+  const onSurvivalEnd = useCallback((score) => {
+    setSurvivalBest(score)
+    addDailyProgress(score)
+    saveSessions({ mode: 'survival', score, total: score, pct: 100, timeSeconds: 0 })
+    updateStreak()
+    awardXP(score, score)
+    syncToFirestore()
+    goHome()
+  }, [awardXP, goHome, syncToFirestore])
+
+  const onSpeedEnd = useCallback((points, correct, total) => {
+    setSpeedBest(correct)
+    addDailyProgress(total)
+    saveSessions({ mode: 'speed', score: correct, total, pct: total > 0 ? Math.round((correct / total) * 100) : 0, timeSeconds: 60 })
+    updateStreak()
+    awardXP(correct, total)
+    syncToFirestore()
+    goHome()
+  }, [awardXP, goHome, syncToFirestore])
+
+  const onMatchEnd = useCallback((score) => {
+    addDailyProgress(score)
+    saveSessions({ mode: 'match', score, total: score, pct: 100, timeSeconds: 0 })
+    updateStreak()
+    awardXP(score, score)
+    syncToFirestore()
+    goHome()
+  }, [awardXP, goHome, syncToFirestore])
+
+  const onEmojiEnd = useCallback((score, total) => {
+    addDailyProgress(total)
+    saveSessions({ mode: 'emoji', score, total, pct: total > 0 ? Math.round((score / total) * 100) : 0, timeSeconds: 0 })
+    updateStreak()
+    awardXP(score, total)
+    syncToFirestore()
+    goHome()
+  }, [awardXP, goHome, syncToFirestore])
 
   const startQOTD = useCallback((question) => {
     const state = {
@@ -297,6 +441,10 @@ export default function App() {
           theme={theme}
           setTheme={setTheme}
           allQuestions={ALL_Q}
+          user={user}
+          onLeaderboard={goLeaderboard}
+          onProfile={goProfile}
+          onDuel={goDuel}
         />
       )}
       {screen === 'game' && gameState && (
@@ -317,6 +465,27 @@ export default function App() {
       )}
       {screen === 'memory' && (
         <MemoryGameScreen onBack={goHome} />
+      )}
+      {screen === 'survival' && (
+        <SurvivalScreen questions={ALL_Q} onEnd={onSurvivalEnd} onBack={goHome} />
+      )}
+      {screen === 'speed' && (
+        <SpeedRoundScreen questions={ALL_Q} onEnd={onSpeedEnd} onBack={goHome} />
+      )}
+      {screen === 'match' && (
+        <ScriptureMatchScreen matches={SCRIPTURE_MATCHES} onEnd={onMatchEnd} onBack={goHome} />
+      )}
+      {screen === 'emoji' && (
+        <EmojiGameScreen stories={EMOJI_STORIES} onEnd={onEmojiEnd} onBack={goHome} />
+      )}
+      {screen === 'leaderboard' && (
+        <LeaderboardScreen onBack={goHome} currentUid={user?.uid} />
+      )}
+      {screen === 'profile' && user && (
+        <ProfileScreen onBack={goHome} user={user} onLogout={handleLogout} />
+      )}
+      {screen === 'duel' && user && (
+        <DuelScreen onBack={goHome} user={user} allQuestions={ALL_Q} />
       )}
     </>
   )
