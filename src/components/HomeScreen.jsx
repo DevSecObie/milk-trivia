@@ -1,19 +1,24 @@
 import { useState } from 'react'
-import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain } from 'lucide-react'
+import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket } from 'lucide-react'
 import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress } from '../lib/storage'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
 
 const modes = [
-  { id: 'mc', icon: BookCheck, label: 'Multiple Choice', desc: 'Select the correct scripture(s)' },
-  { id: 'type', icon: Keyboard, label: 'Type It', desc: 'Type references from memory' },
-  { id: 'flash', icon: BookOpen, label: 'Flashcards', desc: 'Study at your own pace' },
-  { id: 'timed', icon: Timer, label: 'Timed Quiz', desc: '15-second timer' },
-  { id: 'missed', icon: AlertCircle, label: 'Review Missed', desc: 'Drill your weak spots' },
-  { id: 'hard', icon: Zap, label: 'Hardest First', desc: 'Most-missed questions first' },
-  { id: 'fillin', icon: TextCursorInput, label: 'Fill in Blank', desc: 'Complete the missing word' },
-  { id: 'memory', icon: Brain, label: 'Bible Memory', desc: 'Learn book order' },
-  { id: 'levelup', icon: TrendingUp, label: 'Level Up', desc: 'Master categories step by step' },
-  { id: 'mock', icon: Trophy, label: 'Mock Exam', desc: 'Full 240-question test' },
+  { id: 'mc', icon: BookCheck, label: 'Multiple Choice', desc: 'Select the correct scripture(s)', group: 'milk' },
+  { id: 'type', icon: Keyboard, label: 'Type It', desc: 'Type references from memory', group: 'milk' },
+  { id: 'flash', icon: BookOpen, label: 'Flashcards', desc: 'Study at your own pace', group: 'milk' },
+  { id: 'timed', icon: Timer, label: 'Timed Quiz', desc: '15-second timer', group: 'milk' },
+  { id: 'missed', icon: AlertCircle, label: 'Review Missed', desc: 'Drill your weak spots', group: 'milk' },
+  { id: 'hard', icon: Zap, label: 'Hardest First', desc: 'Most-missed questions first', group: 'milk' },
+  { id: 'fillin', icon: TextCursorInput, label: 'Fill in Blank', desc: 'Complete the missing word', group: 'milk' },
+  { id: 'guessbook', icon: HelpCircle, label: 'Guess the Book', desc: 'Which book is this from?', group: 'bible' },
+  { id: 'whosaid', icon: MessageCircle, label: 'Who Said It?', desc: 'Identify the speaker', group: 'bible' },
+  { id: 'scenario', icon: Scale, label: 'Scenario', desc: 'Which law applies?', group: 'bible' },
+  { id: 'quotecomplete', icon: Quote, label: 'Quote Complete', desc: 'Finish the verse', group: 'bible' },
+  { id: 'catrush', icon: Rocket, label: 'Category Rush', desc: 'Topical speed round', group: 'bible' },
+  { id: 'memory', icon: Brain, label: 'Bible Memory', desc: 'Learn book order', group: 'bible' },
+  { id: 'levelup', icon: TrendingUp, label: 'Level Up', desc: 'Master categories step by step', group: 'milk' },
+  { id: 'mock', icon: Trophy, label: 'Mock Exam', desc: 'Full 240-question test', group: 'milk' },
 ]
 const ranges = [
   { value: 'all', label: 'All (1–240)' },
@@ -189,14 +194,13 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
         </div>
       )}
 
-      {/* Modes */}
+      {/* Milk Question Modes */}
       <section style={s.section}>
-        <div style={s.secLabel}>SELECT MODE</div>
+        <div style={s.secLabel}>MILK QUESTIONS</div>
         <div style={s.modeGrid}>
-          {modes.map(m => {
+          {modes.filter(m => m.group === 'milk').map(m => {
             const Icon = m.icon; const active = mode === m.id
             const disabled = m.id === 'missed' && missedCount === 0
-            if (m.id === 'memory') desc = 'Learn book order'
             let desc = m.desc
             if (m.id === 'missed') desc = `${missedCount} questions`
             if (m.id === 'levelup') {
@@ -209,6 +213,23 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
                 <Icon size={20} style={{ color: active ? 'var(--cyan)' : 'var(--text-muted)', marginBottom: 3 }} />
                 <span style={{ ...s.modeName, color: active ? 'var(--cyan)' : 'var(--text-sec)' }}>{m.label}</span>
                 <span style={s.modeDesc}>{desc}</span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* Bible Game Modes */}
+      <section style={s.section}>
+        <div style={s.secLabel}>BIBLE GAMES</div>
+        <div style={s.modeGrid}>
+          {modes.filter(m => m.group === 'bible').map(m => {
+            const Icon = m.icon; const active = mode === m.id
+            return (
+              <button key={m.id} onClick={() => setMode(m.id)} style={{ ...s.modeCard, ...(active ? s.modeActiveGold : {})}}>
+                <Icon size={20} style={{ color: active ? 'var(--accent)' : 'var(--text-muted)', marginBottom: 3 }} />
+                <span style={{ ...s.modeName, color: active ? 'var(--accent)' : 'var(--text-sec)' }}>{m.label}</span>
+                <span style={s.modeDesc}>{m.desc}</span>
               </button>
             )
           })}
@@ -258,8 +279,9 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
         </div>
       </section>
 
-      <button onClick={mode === 'memory' ? onMemoryGame : mode === 'mock' ? handleMockExam : mode === 'levelup' ? handleLevelUp : handleStart} style={s.startBtn}>
-        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : 'INITIALIZE TEST'}
+      <button onClick={mode === 'memory' ? onMemoryGame : mode === 'mock' ? handleMockExam : mode === 'levelup' ? handleLevelUp : handleStart}
+        style={{ ...s.startBtn, ...(modes.find(m => m.id === mode)?.group === 'bible' ? { background: 'linear-gradient(135deg, var(--accent), #D97706)', boxShadow: '0 0 25px rgba(251,191,36,0.2)' } : {}) }}>
+        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : mode === 'catrush' ? 'START CATEGORY RUSH' : 'START GAME'}
       </button>
 
       <a href={`${import.meta.env.BASE_URL}240_Milk_Questions.pdf`} download style={s.dlLink}>
@@ -299,6 +321,7 @@ const s = {
   modeGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 },
   modeCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '14px 6px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s', outline: 'none', textAlign: 'center', cursor: 'pointer', backdropFilter: 'blur(10px)' },
   modeActive: { borderColor: 'var(--cyan)', background: 'var(--cyan-subtle)', boxShadow: '0 0 15px rgba(0,212,255,0.12)' },
+  modeActiveGold: { borderColor: 'var(--accent)', background: 'rgba(251,191,36,0.08)', boxShadow: '0 0 15px rgba(251,191,36,0.12)' },
   modeName: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 600, letterSpacing: 0.8, marginBottom: 1 },
   modeDesc: { fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.2 },
   catGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },

@@ -125,6 +125,13 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
     if(isR)setScore(sc=>sc+1); setAnswers(p=>[...p,{q,correct:isR,given:typedValue.trim()}])
   }
 
+  const doSubmitBible=(sel)=>{
+    const s=sel||selected; if(submitted||s.size===0)return
+    const isR=s.has(q.a)
+    setSubmitted(true);setCorrect(isR); sfx(isR?playCorrect:playIncorrect)
+    if(isR)setScore(sc=>sc+1); setAnswers(p=>[...p,{q,correct:isR,given:[...s].join(', ')}])
+  }
+
   const submitBlank=()=>{
     if(submitted||!typedValue.trim()||!blankData)return
     const isR=typedValue.trim().toLowerCase()===blankData.answer.toLowerCase()
@@ -149,6 +156,34 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
       <div style={st.actionRow}>{!submitted?<button onClick={()=>setSubmitted(true)} style={st.btnP}>Reveal Answer</button>
         :<button onClick={nextQuestion} style={st.btnP}>{idx+1>=total?'Finish':'Next'} <ArrowRight size={16}/></button>}</div>
     </>)}
+
+    // Bible game modes (guessbook, whosaid, scenario, quotecomplete)
+    if(['guessbook','whosaid','scenario','quotecomplete'].includes(mode)&&q.options){
+      const cSet=new Set([q.a])
+      return(<>
+        {mode==='guessbook'&&<div style={st.hint}>Which book is this verse from?</div>}
+        {mode==='whosaid'&&<div style={st.hint}>Who said this?</div>}
+        {mode==='scenario'&&<div style={st.hint}>Which scripture applies?</div>}
+        {mode==='quotecomplete'&&<div style={st.hint}>Complete the verse</div>}
+        <div style={st.optGrid}>{q.options.map((opt,i)=>{
+          const isC=cSet.has(opt),isSel=selected.has(opt)
+          let ss={}
+          if(submitted){if(isC&&isSel)ss=st.optOk;else if(!isC&&isSel)ss=st.optBad;else if(isC&&!isSel)ss=st.optMiss;else ss={opacity:0.35}}
+          else if(isSel)ss=st.optSel
+          return(<button key={i} onClick={()=>{if(submitted)return;sfx(playClick);setSelected(new Set([opt]));doSubmitBible(new Set([opt]))}} disabled={submitted} style={{...st.opt,...ss}}>
+            <div style={{...st.ind,...(isSel&&!submitted?st.indA:{}),...(submitted&&isC&&isSel?st.indOk:{}),...(submitted&&!isC&&isSel?st.indBad:{}),borderRadius:'50%'}}>
+              {submitted&&isC?'✓':submitted&&isSel&&!isC?'✗':isSel?'✓':''}</div>
+            <span style={st.optTxt}>{opt}</span></button>)
+        })}</div>
+        <Feedback correct={correct} answer={!correct&&submitted?q.a:null}/>
+        {submitted&&q.ref&&<div style={st.blankRef}>📖 {q.ref}</div>}
+        {submitted&&q.correctText&&<div style={st.blankVerse}>{q.correctText}</div>}
+        <div style={st.actionRow}>
+          {submitted&&<button onClick={nextQuestion} style={st.btnP}>{idx+1>=total?'Finish':'Next'} <ArrowRight size={16}/></button>}
+        </div>
+        {submitted&&<div style={st.swipeHint}>Swipe right for next →</div>}
+      </>)
+    }
 
     if(mode==='fillin'&&blankData){return(<>
       <div style={st.blankRef}>{blankData.ref}</div>
@@ -203,7 +238,7 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
     </>)
   }
 
-  const mLabels={mc:isMulti?`MULTIPLE CHOICE — SELECT ${q.refs.length}`:'MULTIPLE CHOICE',type:'TYPE YOUR ANSWER',flash:'FLASHCARD',timed:isMulti?`TIMED — SELECT ${q.refs.length}`:'TIMED QUIZ',fillin:'FILL IN THE BLANK'}
+  const mLabels={mc:isMulti?`MULTIPLE CHOICE — SELECT ${q.refs.length}`:'MULTIPLE CHOICE',type:'TYPE YOUR ANSWER',flash:'FLASHCARD',timed:isMulti?`TIMED — SELECT ${q.refs.length}`:'TIMED QUIZ',fillin:'FILL IN THE BLANK',guessbook:'GUESS THE BOOK',whosaid:'WHO SAID IT?',scenario:'SCENARIO MODE',quotecomplete:'QUOTE COMPLETION'}
 
   return(<div style={st.container}>
     <div style={st.topBar}><div style={st.topL}>

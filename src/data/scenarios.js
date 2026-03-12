@@ -1,0 +1,155 @@
+// Scenario Mode - Real-life situations mapped to applicable scriptures
+const SCENARIOS = [
+  {
+    scenario: "A man steals from his neighbor's house.",
+    correctRef: "Exodus 20:15",
+    correctText: "Thou shalt not steal.",
+    wrongRefs: ["Leviticus 19:17", "Deuteronomy 22:5", "Exodus 21:12"],
+  },
+  {
+    scenario: "A woman gossips and spreads rumors about her friend.",
+    correctRef: "Leviticus 19:16",
+    correctText: "Thou shalt not go up and down as a talebearer among thy people.",
+    wrongRefs: ["Exodus 20:16", "Proverbs 6:23", "Deuteronomy 5:20"],
+  },
+  {
+    scenario: "Someone asks you to eat pork at a cookout.",
+    correctRef: "Leviticus 11:7-8",
+    correctText: "The swine...is unclean to you. Of their flesh shall ye not eat.",
+    wrongRefs: ["Genesis 9:3", "Deuteronomy 22:12", "Exodus 23:19"],
+  },
+  {
+    scenario: "Your employer wants you to work on the Sabbath.",
+    correctRef: "Exodus 20:8-10",
+    correctText: "Remember the sabbath day, to keep it holy. Six days shalt thou labour.",
+    wrongRefs: ["Leviticus 23:3", "Deuteronomy 5:12", "Isaiah 58:13"],
+  },
+  {
+    scenario: "A man wants to marry a woman from a nation that worships idols.",
+    correctRef: "Deuteronomy 7:3-4",
+    correctText: "Neither shalt thou make marriages with them...for they will turn away thy son from following me.",
+    wrongRefs: ["Genesis 2:24", "Malachi 2:11", "I Corinthians 7:39"],
+  },
+  {
+    scenario: "Someone curses their father in anger.",
+    correctRef: "Exodus 21:17",
+    correctText: "He that curseth his father, or his mother, shall surely be put to death.",
+    wrongRefs: ["Exodus 20:12", "Deuteronomy 5:16", "Proverbs 20:20"],
+  },
+  {
+    scenario: "A friend asks you to bow to a statue at a cultural event.",
+    correctRef: "Exodus 20:4-5",
+    correctText: "Thou shalt not make unto thee any graven image...thou shalt not bow down thyself to them.",
+    wrongRefs: ["Deuteronomy 4:16", "Isaiah 44:9", "Leviticus 26:1"],
+  },
+  {
+    scenario: "You find money on the ground that someone dropped.",
+    correctRef: "Deuteronomy 22:1-3",
+    correctText: "Thou shalt not see thy brother's ox or his sheep go astray...thou shalt restore it to him again.",
+    wrongRefs: ["Exodus 20:15", "Leviticus 6:2-4", "Proverbs 11:1"],
+  },
+  {
+    scenario: "Someone takes revenge on a person who wronged them.",
+    correctRef: "Leviticus 19:18",
+    correctText: "Thou shalt not avenge, nor bear any grudge...but thou shalt love thy neighbour as thyself.",
+    wrongRefs: ["Deuteronomy 32:35", "Romans 12:19", "Proverbs 24:29"],
+  },
+  {
+    scenario: "A person lies in court to protect their friend.",
+    correctRef: "Exodus 20:16",
+    correctText: "Thou shalt not bear false witness against thy neighbour.",
+    wrongRefs: ["Leviticus 19:11", "Proverbs 6:17", "Deuteronomy 19:18"],
+  },
+  {
+    scenario: "Someone covets their neighbor's new car and house.",
+    correctRef: "Exodus 20:17",
+    correctText: "Thou shalt not covet thy neighbour's house...nor any thing that is thy neighbour's.",
+    wrongRefs: ["Proverbs 14:30", "James 4:2", "I Timothy 6:10"],
+  },
+  {
+    scenario: "A tattoo artist offers to give you a tattoo.",
+    correctRef: "Leviticus 19:28",
+    correctText: "Ye shall not make any cuttings in your flesh...nor print any marks upon you.",
+    wrongRefs: ["I Corinthians 6:19", "Deuteronomy 14:1", "Leviticus 21:5"],
+  },
+  {
+    scenario: "A woman puts on men's clothing to go out.",
+    correctRef: "Deuteronomy 22:5",
+    correctText: "The woman shall not wear that which pertaineth unto a man...for all that do so are abomination.",
+    wrongRefs: ["Leviticus 18:22", "I Timothy 2:9", "I Corinthians 11:5"],
+  },
+  {
+    scenario: "Someone charges their brother excessive interest on a loan.",
+    correctRef: "Exodus 22:25",
+    correctText: "If thou lend money to any of my people that is poor by thee, thou shalt not be to him as an usurer.",
+    wrongRefs: ["Deuteronomy 15:7", "Leviticus 25:36", "Proverbs 22:7"],
+  },
+  {
+    scenario: "A child refuses to listen to their parents' instruction.",
+    correctRef: "Exodus 20:12",
+    correctText: "Honour thy father and thy mother: that thy days may be long upon the land.",
+    wrongRefs: ["Proverbs 22:6", "Ephesians 6:1", "Deuteronomy 21:18"],
+  },
+  {
+    scenario: "A merchant uses dishonest scales to cheat customers.",
+    correctRef: "Leviticus 19:35-36",
+    correctText: "Ye shall do no unrighteousness in judgment, in meteyard, in weight, or in measure.",
+    wrongRefs: ["Proverbs 11:1", "Deuteronomy 25:13", "Amos 8:5"],
+  },
+  {
+    scenario: "Someone mixes two different kinds of fabric in their garment.",
+    correctRef: "Leviticus 19:19",
+    correctText: "Neither shall a garment mingled of linen and woollen come upon thee.",
+    wrongRefs: ["Deuteronomy 22:11", "Deuteronomy 22:5", "Leviticus 11:44"],
+  },
+  {
+    scenario: "A person consults a psychic to speak with the dead.",
+    correctRef: "Deuteronomy 18:10-12",
+    correctText: "There shall not be found among you...a consulter with familiar spirits...or a necromancer.",
+    wrongRefs: ["Leviticus 19:31", "Isaiah 8:19", "I Samuel 28:7"],
+  },
+  {
+    scenario: "Your friend wants you to eat shrimp and lobster at dinner.",
+    correctRef: "Leviticus 11:10-12",
+    correctText: "Whatsoever hath not fins and scales in the waters...shall be an abomination unto you.",
+    wrongRefs: ["Deuteronomy 14:9", "Genesis 1:21", "Leviticus 11:7"],
+  },
+  {
+    scenario: "A man refuses to pay his workers on time.",
+    correctRef: "Leviticus 19:13",
+    correctText: "The wages of him that is hired shall not abide with thee all night until the morning.",
+    wrongRefs: ["Deuteronomy 24:15", "James 5:4", "Malachi 3:5"],
+  },
+  {
+    scenario: "Someone wants to celebrate Christmas with a decorated tree.",
+    correctRef: "Jeremiah 10:2-4",
+    correctText: "Learn not the way of the heathen...they cut a tree...they deck it with silver and with gold.",
+    wrongRefs: ["Deuteronomy 12:30", "Isaiah 44:14-17", "Exodus 20:4"],
+  },
+  {
+    scenario: "A young man is angry and plots to harm his enemy.",
+    correctRef: "Exodus 20:13",
+    correctText: "Thou shalt not kill.",
+    wrongRefs: ["Matthew 5:22", "Leviticus 19:17", "Proverbs 24:17"],
+  },
+  {
+    scenario: "Someone sees a person in need but refuses to help.",
+    correctRef: "Leviticus 19:18",
+    correctText: "Thou shalt love thy neighbour as thyself: I am the Lord.",
+    wrongRefs: ["Deuteronomy 15:7", "Proverbs 3:27", "James 2:15-16"],
+  },
+  {
+    scenario: "A person wants to get a haircut that rounds the corners of their head.",
+    correctRef: "Leviticus 19:27",
+    correctText: "Ye shall not round the corners of your heads, neither shalt thou mar the corners of thy beard.",
+    wrongRefs: ["Deuteronomy 14:1", "Leviticus 21:5", "Numbers 6:5"],
+  },
+  {
+    scenario: "Someone finds an animal that strayed from their enemy's property.",
+    correctRef: "Exodus 23:4",
+    correctText: "If thou meet thine enemy's ox or his ass going astray, thou shalt surely bring it back to him again.",
+    wrongRefs: ["Deuteronomy 22:1", "Leviticus 19:18", "Proverbs 25:21"],
+  },
+]
+
+export default SCENARIOS
