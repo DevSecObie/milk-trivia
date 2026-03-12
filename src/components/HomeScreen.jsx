@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Smile, Crown, Award, Shield, User, LogIn, Swords } from 'lucide-react'
+import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Crown, Award, Shield, User, LogIn, Swords } from 'lucide-react'
 import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress, getXP, RANKS, checkAchievements, getSurvivalBest, getSpeedBest } from '../lib/storage'
 import { signInAsGuest, signInWithGoogle } from '../lib/authService'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
@@ -24,11 +24,10 @@ const modes = [
   { id: 'mock', icon: Trophy, label: 'Mock Exam', desc: 'Full 240-question test', group: 'milk' },
   { id: 'guessbook', icon: HelpCircle, label: 'Guess the Book', desc: 'Which book is this from?', group: 'bible' },
   { id: 'whosaid', icon: MessageCircle, label: 'Who Said It?', desc: 'Identify the speaker', group: 'bible' },
-  { id: 'scenario', icon: Scale, label: 'Scenario', desc: 'Which law applies?', group: 'bible' },
+  { id: 'scenario', icon: Scale, label: 'Scenario', desc: 'What scripture should be applied?', group: 'bible' },
   { id: 'quotecomplete', icon: Quote, label: 'Quote Complete', desc: 'Finish the verse', group: 'bible' },
   { id: 'catrush', icon: Rocket, label: 'Category Rush', desc: 'Topical speed round', group: 'bible' },
   { id: 'memory', icon: Brain, label: 'Bible Memory', desc: 'Learn book order', group: 'bible' },
-  { id: 'emoji', icon: Smile, label: 'Emoji Quiz', desc: 'Guess the Bible story', group: 'bible' },
   { id: 'match', icon: Link2, label: 'Scripture Match', desc: 'Connect verses to refs', group: 'bible' },
   { id: 'virtuous', icon: Crown, label: 'Virtuous Woman', desc: 'Proverbs 31 & Titus 2', group: 'bible' },
   { id: 'virtuous_fillin', icon: TextCursorInput, label: 'Sisters Fill In', desc: 'Complete the verse', group: 'bible' },
@@ -54,6 +53,7 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
   const [dailyGoalVal, setDailyGoalVal] = useState(getDailyGoal())
   const [showGoalPicker, setShowGoalPicker] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
+  const [authError, setAuthError] = useState(null)
   const streak = getStreak()
   const missedCount = getMissed().length
   const sessions = getSessions()
@@ -99,8 +99,8 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
   }
 
   const toggleSound = () => { const v = !sound; setSound(v); setSoundPref(v) }
-  const handleSignInGoogle = async () => { setSigningIn(true); try { await signInWithGoogle() } catch {} setSigningIn(false) }
-  const handleSignInGuest = async () => { setSigningIn(true); try { await signInAsGuest() } catch {} setSigningIn(false) }
+  const handleSignInGoogle = async () => { setSigningIn(true); setAuthError(null); try { await signInWithGoogle() } catch (err) { setAuthError(err.message) } finally { setSigningIn(false) } }
+  const handleSignInGuest = async () => { setSigningIn(true); setAuthError(null); try { await signInAsGuest() } catch (err) { setAuthError(err.message) } finally { setSigningIn(false) } }
   const isDark = theme === 'dark'
 
   return (
@@ -124,9 +124,10 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
           <LogIn size={16} style={{ color: 'var(--cyan)' }} />
           <span style={s.authText}>Sign in to compete on leaderboards & duel</span>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={handleSignInGoogle} disabled={signingIn} style={s.authBtn}>Google</button>
-            <button onClick={handleSignInGuest} disabled={signingIn} style={s.authBtnSec}>Guest</button>
+            <button onClick={handleSignInGoogle} disabled={signingIn} style={s.authBtn}>{signingIn ? 'Signing in...' : 'Google'}</button>
+            <button onClick={handleSignInGuest} disabled={signingIn} style={s.authBtnSec}>{signingIn ? '...' : 'Guest'}</button>
           </div>
+          {authError && <div style={s.authError}>{authError}</div>}
         </div>
       ) : (
         <div style={s.authCard}>
@@ -358,7 +359,7 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
 
       <button onClick={mode === 'memory' ? onMemoryGame : mode === 'mock' ? handleMockExam : mode === 'levelup' ? handleLevelUp : handleStart}
         style={{ ...s.startBtn, ...(modes.find(m => m.id === mode)?.group === 'bible' ? { background: 'linear-gradient(135deg, var(--accent), #D97706)', boxShadow: '0 0 25px rgba(251,191,36,0.2)' } : {}), ...(mode === 'survival' ? { background: 'linear-gradient(135deg, var(--red), #DC2626)', boxShadow: '0 0 25px rgba(255,51,102,0.2)' } : {}), ...(mode === 'speed' ? { background: 'linear-gradient(135deg, var(--accent), var(--cyan))', boxShadow: '0 0 25px rgba(251,191,36,0.2)' } : {}) }}>
-        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : mode === 'survival' ? 'START SURVIVAL' : mode === 'speed' ? 'START SPEED ROUND' : mode === 'match' ? 'START SCRIPTURE MATCH' : mode === 'emoji' ? 'START EMOJI QUIZ' : mode === 'virtuous' ? 'START VIRTUOUS WOMAN' : mode === 'virtuous_fillin' ? 'START SISTERS FILL IN' : mode === 'virtuous_scenario' ? 'START SISTERS SCENARIO' : mode === 'catrush' ? 'START CATEGORY RUSH' : 'START GAME'}
+        {mode === 'memory' ? 'START BIBLE MEMORY' : mode === 'mock' ? 'START MOCK EXAM' : mode === 'levelup' ? 'START LEVEL UP' : mode === 'survival' ? 'START SURVIVAL' : mode === 'speed' ? 'START SPEED ROUND' : mode === 'match' ? 'START SCRIPTURE MATCH' : mode === 'virtuous' ? 'START VIRTUOUS WOMAN' : mode === 'virtuous_fillin' ? 'START SISTERS FILL IN' : mode === 'virtuous_scenario' ? 'START SISTERS SCENARIO' : mode === 'catrush' ? 'START CATEGORY RUSH' : 'START GAME'}
       </button>
 
       <a href={`${import.meta.env.BASE_URL}240_Milk_Questions.pdf`} download style={s.dlLink}>
@@ -454,6 +455,7 @@ const s = {
   authText: { fontSize: 12, fontWeight: 600, color: 'var(--text-sec)', flex: 1, minWidth: 100 },
   authBtn: { padding: '6px 14px', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: '#fff', background: 'var(--cyan)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
   authBtnSec: { padding: '6px 14px', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: 'var(--text-sec)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
+  authError: { width: '100%', fontSize: 11, color: 'var(--red)', background: 'var(--red-subtle)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,51,102,0.15)', marginTop: 4 },
   userAvatar: { width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), #D97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-display)', color: '#fff', flexShrink: 0, overflow: 'hidden' },
   userAvatarImg: { width: 28, height: 28, borderRadius: '50%' },
   duelNavBtn: { display: 'flex', alignItems: 'center', gap: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: 'var(--accent)', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },

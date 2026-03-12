@@ -163,7 +163,7 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
       return(<>
         {mode==='guessbook'&&<div style={st.hint}>Which book is this verse from?</div>}
         {mode==='whosaid'&&<div style={st.hint}>Who said this?</div>}
-        {mode==='scenario'&&<div style={st.hint}>Which scripture applies?</div>}
+        {mode==='scenario'&&<div style={st.hint}>What scripture should be applied?</div>}
         {mode==='quotecomplete'&&<div style={st.hint}>Complete the verse</div>}
         {mode==='virtuous'&&<div style={st.hint}>Proverbs 31 & Titus 2</div>}
         <div style={st.optGrid}>{q.options.map((opt,i)=>{
