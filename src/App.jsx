@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import questions from './data/questions.json'
 import { getCategories } from './data/categories'
+import WHO_SAID_IT from './data/whoSaidIt'
+import SCENARIOS from './data/scenarios'
 import ParticleBackground from './components/ParticleBackground'
 import HomeScreen from './components/HomeScreen'
 import GameScreen from './components/GameScreen'
@@ -38,6 +40,108 @@ export default function App() {
   }, [])
 
   const startGame = useCallback((settings) => {
+    // Bible game modes use separate data
+    const bibleModes = ['guessbook', 'whosaid', 'scenario', 'quotecomplete', 'catrush']
+    if (bibleModes.includes(settings.mode)) {
+      let biblePool = []
+      const mode = settings.mode
+
+      if (mode === 'whosaid') {
+        biblePool = shuffleArray(WHO_SAID_IT).slice(0, settings.numQuestions).map((item, i) => ({
+          n: i + 1, q: `"${item.quote}"`, a: item.speaker,
+          options: shuffleArray([item.speaker, ...item.wrong]),
+          ref: item.ref, bibleMode: 'whosaid',
+        }))
+      } else if (mode === 'scenario') {
+        biblePool = shuffleArray(SCENARIOS).slice(0, settings.numQuestions).map((item, i) => ({
+          n: i + 1, q: item.scenario, a: item.correctRef,
+          correctText: item.correctText,
+          options: shuffleArray([item.correctRef, ...item.wrongRefs]),
+          bibleMode: 'scenario',
+        }))
+      } else if (mode === 'guessbook') {
+        const withVerses = ALL_Q.filter(q => q.verses && q.verses.length > 0)
+        const allBooks = [...new Set(withVerses.flatMap(q => q.verses.map(v => v.ref.split(/\d/)[0].trim())))]
+        biblePool = shuffleArray(withVerses).slice(0, settings.numQuestions).map((q, i) => {
+          const verse = q.verses[0]
+          const correctBook = verse.ref.split(/\d/)[0].trim()
+          const wrongBooks = shuffleArray(allBooks.filter(b => b !== correctBook)).slice(0, 3)
+          const verseText = verse.text.replace(/\[\d+\]\s*/g, '')
+          return {
+            n: i + 1, q: verseText.substring(0, 200) + (verseText.length > 200 ? '...' : ''),
+            a: correctBook, options: shuffleArray([correctBook, ...wrongBooks]),
+            ref: verse.ref, bibleMode: 'guessbook',
+          }
+        })
+      } else if (mode === 'quotecomplete') {
+        const withVerses = ALL_Q.filter(q => q.verses && q.verses.length > 0)
+        biblePool = shuffleArray(withVerses).slice(0, settings.numQuestions).map((q, i) => {
+          const verse = q.verses[0]
+          const text = verse.text.replace(/\[\d+\]\s*/g, '')
+          const words = text.split(/\s+/)
+          // Pick a meaningful segment to blank (last 2-4 words)
+          const endIdx = words.length
+          const startIdx = Math.max(0, endIdx - Math.min(4, Math.max(2, Math.floor(words.length * 0.15))))
+          const blankedWords = words.slice(startIdx, endIdx).join(' ').replace(/[.,;:!?]+$/, '')
+          const prompt = words.slice(0, startIdx).join(' ') + ' ____'
+          // Generate wrong options from other verses
+          const otherVerses = shuffleArray(withVerses.filter(oq => oq.n !== q.n)).slice(0, 3)
+          const wrongOptions = otherVerses.map(oq => {
+            const oText = oq.verses[0].text.replace(/\[\d+\]\s*/g, '')
+            const oWords = oText.split(/\s+/)
+            const oEnd = oWords.length
+            const oStart = Math.max(0, oEnd - Math.min(4, Math.max(2, Math.floor(oWords.length * 0.15))))
+            return oWords.slice(oStart, oEnd).join(' ').replace(/[.,;:!?]+$/, '')
+          })
+          return {
+            n: i + 1, q: prompt, a: blankedWords,
+            options: shuffleArray([blankedWords, ...wrongOptions]),
+            ref: verse.ref, bibleMode: 'quotecomplete',
+          }
+        })
+      } else if (mode === 'catrush') {
+        // Filter by selected category, or pick one randomly
+        let catPool = [...ALL_Q]
+        if (settings.categories && settings.categories.length > 0) {
+          catPool = catPool.filter(q => q.categories.some(c => settings.categories.includes(c)))
+        } else {
+          // Pick a random category
+          const allCats = [...new Set(ALL_Q.flatMap(q => q.categories))]
+          const randomCat = allCats[Math.floor(Math.random() * allCats.length)]
+          catPool = ALL_Q.filter(q => q.categories.includes(randomCat))
+          settings.rushCategory = randomCat
+        }
+        biblePool = shuffleArray(catPool).slice(0, Math.min(10, catPool.length)).map(q => ({
+          ...q, bibleMode: 'catrush',
+        }))
+        // Category Rush uses timed MC format
+        const state = {
+          mode: 'timed', questions: biblePool, confirmBeforeSubmit: false,
+          idx: 0, score: 0, answers: [], startTime: Date.now(),
+          isCatRush: true, rushCategory: settings.rushCategory,
+        }
+        setGameState(state)
+        saveActiveGame(state)
+        setResumeData(null)
+        setScreen('game')
+        saveSettings(settings)
+        return
+      }
+
+      if (biblePool.length === 0) return alert('Not enough data for this mode!')
+
+      const state = {
+        mode, questions: biblePool, confirmBeforeSubmit: false,
+        idx: 0, score: 0, answers: [], startTime: Date.now(),
+      }
+      setGameState(state)
+      saveActiveGame(state)
+      setResumeData(null)
+      setScreen('game')
+      saveSettings(settings)
+      return
+    }
+
     let pool = [...ALL_Q]
 
     // Filter by category
@@ -122,11 +226,14 @@ export default function App() {
     clearActiveGame()
     const elapsed = gameState ? Math.round((Date.now() - gameState.startTime) / 1000) : 0
 
-    // Record per-question stats + missed bank
+    // Record per-question stats + missed bank (only for milk question modes)
+    const isBibleMode = ['guessbook', 'whosaid', 'scenario', 'quotecomplete'].includes(gameState?.mode)
     answers.forEach(a => {
-      recordQuestionResult(a.q.n, a.correct)
-      if (!a.correct) addMissed(a.q.n)
-      else removeMissed(a.q.n)
+      if (!isBibleMode && a.q.n) {
+        recordQuestionResult(a.q.n, a.correct)
+        if (!a.correct) addMissed(a.q.n)
+        else removeMissed(a.q.n)
+      }
       // Level Up: update category mastery
       if (gameState?.isLevelUp && a.q.categories) {
         a.q.categories.forEach(cat => updateLevelUp(cat, a.correct))
