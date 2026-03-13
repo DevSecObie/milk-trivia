@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { ArrowLeft, Swords, Clock, Users, Copy, Check, X, ArrowRight, Zap } from 'lucide-react'
+import { ArrowLeft, Swords, Clock, Users, Copy, Check, X, ArrowRight, Zap, Share2 } from 'lucide-react'
 import { createDuel, joinDuel, watchDuel, submitDuelAnswer, getOpenDuels, deleteDuel } from '../lib/firestoreService'
 import { isSoundOn } from '../lib/storage'
 import { playCorrect, playIncorrect, playClick } from '../lib/sounds'
@@ -34,6 +34,17 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
   const myAnswers = isHost ? (duelData?.hostAnswers || []) : (duelData?.guestAnswers || [])
 
   const sfx = (fn) => { if (isSoundOn()) fn() }
+
+  // Auto-join from shared link (?duel=<id>)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const sharedDuelId = params.get('duel')
+    if (sharedDuelId && phase === 'lobby') {
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname)
+      handleJoin(sharedDuelId)
+    }
+  }, [])
 
   // Load open duels
   useEffect(() => {
@@ -120,6 +131,23 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     })
   }
 
+  const shareDuel = async () => {
+    const duelUrl = `${window.location.origin}${window.location.pathname}?duel=${duelId}`
+    const shareData = {
+      title: '240 Milk Questions — Duel Challenge',
+      text: `${user.displayName || 'Someone'} challenged you to a scripture trivia duel! Tap to join:`,
+      url: duelUrl,
+    }
+    if (navigator.share) {
+      try { await navigator.share(shareData) } catch {}
+    } else {
+      navigator.clipboard.writeText(`${shareData.text}\n${duelUrl}`).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+    }
+  }
+
   // LOBBY
   if (phase === 'lobby') {
     return (
@@ -181,6 +209,9 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
           </div>
+          <button onClick={shareDuel} style={st.shareBtn}>
+            <Share2 size={14} /> SHARE INVITE
+          </button>
           <div style={st.dots}>
             <span style={st.dot} /><span style={st.dot} /><span style={st.dot} />
           </div>
@@ -310,6 +341,7 @@ const st = {
   copyBtn: { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cyan-subtle)', border: '1px solid var(--cyan)', borderRadius: 6, color: 'var(--cyan)', cursor: 'pointer' },
   dots: { display: 'flex', justifyContent: 'center', gap: 8, margin: '16px 0' },
   dot: { width: 8, height: 8, borderRadius: '50%', background: 'var(--cyan)', animation: 'pulse 1.5s infinite' },
+  shareBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '12px 20px', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 1.5, color: '#fff', background: 'linear-gradient(135deg, var(--accent), #D97706)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', marginTop: 8, boxShadow: '0 0 20px rgba(251,191,36,0.2)' },
   cancelBtn: { padding: '8px 20px', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-display)', background: 'var(--red-subtle)', border: '1px solid rgba(255,51,102,0.15)', borderRadius: 'var(--radius-sm)', color: 'var(--red)', cursor: 'pointer' },
   // Playing
   scoreP1: { display: 'flex', alignItems: 'center', gap: 6 },
