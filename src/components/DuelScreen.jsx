@@ -1,15 +1,52 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Swords, Clock, Users, Copy, Check, X, Zap, Share2, Trophy, Shield, Flame } from 'lucide-react'
+import { ArrowLeft, Swords, Clock, Users, Copy, Check, X, Zap, Share2, Trophy, Shield, Flame, BookOpen, MessageCircle, AlertTriangle, Timer } from 'lucide-react'
 import { createDuel, joinDuel, watchDuel, submitDuelAnswer, getOpenDuels, deleteDuel } from '../lib/firestoreService'
 import { isSoundOn } from '../lib/storage'
 import { playCorrect, playIncorrect, playClick } from '../lib/sounds'
 import questions from '../data/questions.json'
+import SCENARIOS from '../data/scenarios'
+import WHO_SAID_IT from '../data/whoSaidIt'
 
 function shuffleArray(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}; return a }
 
-// Same pools used in GameScreen MC mode
+// Answer pools for MC mode (same as GameScreen)
 const ALL_REFS = [...new Set(questions.flatMap(q => q.refs || []))]
 const ALL_ANS = questions.filter(q => !q.isScripture && q.a.length < 60).map(q => q.a)
+
+const TIMER_SECONDS = 20
+
+const DUEL_MODES = [
+  { id: 'mc', label: 'Scripture Trivia', desc: 'Classic 240 Milk Questions', icon: BookOpen },
+  { id: 'scenario', label: 'Scenario', desc: 'Match real-life situations to scripture', icon: AlertTriangle },
+  { id: 'whosaid', label: 'Who Said It?', desc: 'Identify who spoke the biblical quote', icon: MessageCircle },
+]
+
+// Build question pool based on mode
+function buildDuelPool(mode, allQuestions) {
+  if (mode === 'scenario') {
+    return shuffleArray(SCENARIOS).slice(0, 10).map((item, i) => ({
+      n: i + 1,
+      q: item.scenario,
+      a: item.correctRef,
+      options: shuffleArray([item.correctRef, ...item.wrongRefs]),
+      duelMode: 'scenario',
+    }))
+  }
+  if (mode === 'whosaid') {
+    return shuffleArray(WHO_SAID_IT).slice(0, 10).map((item, i) => ({
+      n: i + 1,
+      q: `"${item.quote}"`,
+      a: item.speaker,
+      options: shuffleArray([item.speaker, ...item.wrong]),
+      duelMode: 'whosaid',
+    }))
+  }
+  // Default: mc
+  return shuffleArray([...allQuestions]).slice(0, 10).map(q => ({
+    n: q.n, q: q.q, a: q.a, isScripture: !!q.isScripture,
+    duelMode: 'mc',
+  }))
+}
 
 export default function DuelScreen({ onBack, user, allQuestions }) {
   const [phase, setPhase] = useState('lobby')
@@ -20,6 +57,7 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [selectedMode, setSelectedMode] = useState('mc')
 
   // Game state
   const [submitted, setSubmitted] = useState(false)
@@ -28,11 +66,13 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
   const [options, setOptions] = useState([])
   const [roundStart, setRoundStart] = useState(null)
   const [showVsSplash, setShowVsSplash] = useState(false)
-  const [scorePopup, setScorePopup] = useState(null) // {text, color}
+  const [scorePopup, setScorePopup] = useState(null)
   const [streak, setStreak] = useState(0)
   const [prevMyScore, setPrevMyScore] = useState(0)
   const [prevOpScore, setPrevOpScore] = useState(0)
+  const [timeLeft, setTimeLeft] = useState(TIMER_SECONDS)
   const unsubRef = useRef(null)
+  const timerRef = useRef(null)
 
   const isHost = duelData?.hostUid === user?.uid
   const myScore = isHost ? duelData?.hostScore : duelData?.guestScore
@@ -89,7 +129,7 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     setPrevOpScore(os)
   }, [duelData?.hostScore, duelData?.guestScore])
 
-  // Setup round options — same logic as GameScreen MC mode
+  // Setup round options
   useEffect(() => {
     if (phase !== 'playing' || !duelData) return
     const round = duelData.currentRound
@@ -100,26 +140,56 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     setCorrect(null)
     setSelected(null)
     setRoundStart(Date.now())
+    setTimeLeft(TIMER_SECONDS)
 
-    // Match GameScreen MC format exactly
-    if (q.isScripture) {
-      // Scripture questions: wrong answers are other scripture refs
-      const correctAnswer = q.a
-      const wrong = shuffleArray(ALL_REFS.filter(r => r !== correctAnswer)).slice(0, 3)
-      setOptions(shuffleArray([correctAnswer, ...wrong]))
+    // If question has pre-built options (scenario, whosaid), use them
+    if (q.options) {
+      setOptions(q.options)
+    } else if (q.isScripture) {
+      const wrong = shuffleArray(ALL_REFS.filter(r => r !== q.a)).slice(0, 3)
+      setOptions(shuffleArray([q.a, ...wrong]))
     } else {
-      // Non-scripture: wrong answers are other non-scripture answers
       const wrong = shuffleArray(ALL_ANS.filter(a => a !== q.a)).slice(0, 3)
       setOptions(shuffleArray([q.a, ...wrong]))
     }
   }, [duelData?.currentRound, phase])
 
+  // 20-second countdown timer
+  useEffect(() => {
+    if (phase !== 'playing' || !duelData || submitted) {
+      clearInterval(timerRef.current)
+      return
+    }
+    const waitingForOther = myAnswers.length > duelData.currentRound
+    if (waitingForOther) return
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 0.1) {
+          clearInterval(timerRef.current)
+          handleTimeExpired()
+          return 0
+        }
+        return prev - 0.1
+      })
+    }, 100)
+    return () => clearInterval(timerRef.current)
+  }, [phase, submitted, duelData?.currentRound, myAnswers.length])
+
+  const handleTimeExpired = async () => {
+    if (submitted || !duelData) return
+    setSubmitted(true)
+    setCorrect(false)
+    setStreak(0)
+    sfx(playIncorrect)
+    const timeMs = TIMER_SECONDS * 1000
+    await submitDuelAnswer(duelId, isHost, duelData.currentRound, false, timeMs)
+  }
+
   const handleCreate = async () => {
     setLoading(true); setError(null)
     try {
-      const pool = shuffleArray([...allQuestions]).slice(0, 10).map(q => ({
-        n: q.n, q: q.q, a: q.a, isScripture: !!q.isScripture,
-      }))
+      const pool = buildDuelPool(selectedMode, allQuestions)
       const id = await createDuel(user.uid, user.displayName || 'Player 1', pool)
       setDuelId(id)
       setPhase('waiting')
@@ -141,11 +211,13 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
   const handleCancel = async () => {
     if (duelId) await deleteDuel(duelId).catch(() => {})
     if (unsubRef.current) unsubRef.current()
+    clearInterval(timerRef.current)
     setDuelId(null); setDuelData(null); setPhase('lobby')
   }
 
   const handleAnswer = async (opt) => {
     if (submitted || !duelData) return
+    clearInterval(timerRef.current)
     sfx(playClick)
     setSelected(opt)
     const q = duelData.questions[duelData.currentRound]
@@ -183,6 +255,14 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     }
   }
 
+  // Get mode-specific hint text
+  const getModeHint = (q) => {
+    const mode = q.duelMode || duelData?.questions?.[0]?.duelMode || 'mc'
+    if (mode === 'scenario') return 'What scripture should be applied?'
+    if (mode === 'whosaid') return 'Who said this?'
+    return null
+  }
+
   // VS SPLASH OVERLAY
   if (showVsSplash) {
     return (
@@ -218,7 +298,29 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
         <div style={st.heroCard}>
           <Swords size={40} style={{ color: 'var(--accent)', marginBottom: 12 }} />
           <h3 style={st.heroTitle}>MULTIPLAYER DUEL</h3>
-          <p style={st.heroDesc}>Challenge another player to 10 rounds of scripture trivia. Fastest correct answer wins each round!</p>
+          <p style={st.heroDesc}>Challenge another player to 10 rounds. {TIMER_SECONDS}s per question — fastest correct answer wins!</p>
+        </div>
+
+        {/* Mode Selection */}
+        <div style={st.secLabel}>SELECT GAME MODE</div>
+        <div style={st.modeGrid}>
+          {DUEL_MODES.map(m => {
+            const Icon = m.icon
+            const active = selectedMode === m.id
+            return (
+              <button key={m.id} onClick={() => setSelectedMode(m.id)} style={{
+                ...st.modeCard,
+                borderColor: active ? 'var(--accent)' : 'var(--border)',
+                background: active ? 'rgba(251,191,36,0.08)' : 'var(--bg-card)',
+                boxShadow: active ? '0 0 16px rgba(251,191,36,0.15)' : 'none',
+              }}>
+                <Icon size={20} style={{ color: active ? 'var(--accent)' : 'var(--text-muted)', marginBottom: 6 }} />
+                <div style={{ ...st.modeLabel, color: active ? 'var(--accent)' : 'var(--text)' }}>{m.label}</div>
+                <div style={st.modeDesc}>{m.desc}</div>
+                {active && <div style={st.modeCheck}><Check size={10} /></div>}
+              </button>
+            )
+          })}
         </div>
 
         <button onClick={handleCreate} disabled={loading} style={st.createBtn}>
@@ -284,7 +386,10 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     if (round >= duelData.totalRounds) return null
     const q = duelData.questions[round]
     const waitingForOther = myAnswers.length > round
-    const timeElapsed = roundStart ? Math.min(((Date.now() - roundStart) / 1000), 30) : 0
+    const timeElapsed = roundStart ? Math.min(((Date.now() - roundStart) / 1000), TIMER_SECONDS) : 0
+    const timerPct = Math.max(0, (timeLeft / TIMER_SECONDS) * 100)
+    const timerDanger = timeLeft <= 5
+    const hint = getModeHint(q)
 
     return (
       <div style={st.container}>
@@ -331,6 +436,26 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
           </div>
         </div>
 
+        {/* Timer Bar */}
+        {!waitingForOther && (
+          <div style={st.timerBarOuter}>
+            <div style={{
+              ...st.timerBarFill,
+              width: `${timerPct}%`,
+              background: timerDanger
+                ? 'linear-gradient(90deg, var(--red), var(--red-dim))'
+                : 'linear-gradient(90deg, var(--cyan-dim), var(--cyan))',
+              transition: submitted ? 'none' : 'width 0.1s linear',
+            }} />
+            <div style={{
+              ...st.timerText,
+              color: timerDanger ? 'var(--red)' : 'var(--text-muted)',
+            }}>
+              <Timer size={10} /> {Math.ceil(timeLeft)}s
+            </div>
+          </div>
+        )}
+
         {/* Progress Pips */}
         <div style={st.progressPips}>
           {Array.from({ length: duelData.totalRounds }, (_, i) => (
@@ -351,7 +476,8 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
             <div style={st.waitTitle}>WAITING FOR OPPONENT</div>
             <div style={st.waitSub}>
               {correct ? 'Great answer! Waiting for your opponent to respond...'
-                : 'Opponent is still answering...'}
+                : correct === false ? 'Opponent is still answering...'
+                : 'Waiting for opponent...'}
             </div>
             <div style={st.waitDots}>
               <span style={{ ...st.waitDot, animationDelay: '0s' }} />
@@ -365,6 +491,7 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
               <Swords size={10} style={{ marginRight: 4 }} />
               DUEL — ROUND {round + 1}
             </div>
+            {hint && <div style={st.hint}>{hint}</div>}
             <h2 style={st.qTxt}>{q.n}) {q.q}</h2>
 
             {/* MC-style options with indicators */}
@@ -416,7 +543,7 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
                     : <X size={18} style={{ color: 'var(--red)' }} />
                   }
                   <span style={{ color: correct ? 'var(--green)' : 'var(--red)', fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: 1 }}>
-                    {correct ? 'CORRECT!' : 'INCORRECT'}
+                    {!selected ? 'TIME\'S UP!' : correct ? 'CORRECT!' : 'INCORRECT'}
                   </span>
                   {correct && streak >= 2 && (
                     <span className="duel-streak" style={st.streakInline}>
@@ -429,10 +556,12 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
                     Answer: {q.a}
                   </div>
                 )}
-                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  <Clock size={10} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                  {(timeElapsed).toFixed(1)}s
-                </div>
+                {selected && (
+                  <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    <Clock size={10} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                    {timeElapsed.toFixed(1)}s
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -448,7 +577,6 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     return (
       <div style={st.container} className="animate-in">
         <div style={st.resultsCard}>
-          {/* Trophy / result icon */}
           <div className="duel-swords" style={{ marginBottom: 16 }}>
             {tie ? (
               <Zap size={56} style={{ color: 'var(--accent)' }} />
@@ -471,7 +599,6 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
             {tie ? 'Evenly matched!' : iWon ? 'You outdueled your opponent!' : 'Better luck next time!'}
           </div>
 
-          {/* Battle result cards */}
           <div style={st.resultBattle}>
             <div className="duel-slide-left" style={{
               ...st.resultCard,
@@ -520,6 +647,13 @@ const st = {
   heroCard: { textAlign: 'center', padding: 28, background: 'linear-gradient(135deg, rgba(251,191,36,0.06), rgba(0,212,255,0.04))', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 'var(--radius)', marginBottom: 16 },
   heroTitle: { fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8 },
   heroDesc: { fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.5 },
+  // Mode selection
+  modeGrid: { display: 'flex', gap: 8, marginBottom: 16 },
+  modeCard: { flex: 1, padding: '14px 8px', textAlign: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' },
+  modeLabel: { fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 },
+  modeDesc: { fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.3 },
+  modeCheck: { position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: '50%', background: 'var(--accent)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  // Create/Join
   createBtn: { display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '14px 24px', fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 2, color: '#fff', background: 'linear-gradient(135deg, var(--accent), #D97706)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', boxShadow: '0 0 20px rgba(251,191,36,0.2)' },
   divider: { display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0', color: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-display)', letterSpacing: 2 },
   joinRow: { display: 'flex', gap: 8 },
@@ -548,7 +682,7 @@ const st = {
   vsBadge: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
   vsText: { fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 900, color: 'var(--accent)', letterSpacing: 4, textShadow: '0 0 20px rgba(251,191,36,0.5)' },
   // Battle Scoreboard
-  battleBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 12, backdropFilter: 'blur(10px)' },
+  battleBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 4, backdropFilter: 'blur(10px)' },
   battlePlayer: { display: 'flex', alignItems: 'center', gap: 8 },
   battleAvatar: { width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cyan-subtle)', border: '1px solid rgba(0,212,255,0.3)' },
   battleName: { fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 600, color: 'var(--text-sec)', letterSpacing: 0.5 },
@@ -558,10 +692,15 @@ const st = {
   popup: { position: 'absolute', top: -8, left: '50%', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 900, pointerEvents: 'none' },
   streakBadge: { display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--accent)', padding: '2px 6px', background: 'rgba(251,191,36,0.12)', borderRadius: 8 },
   streakInline: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--accent)', marginLeft: 8 },
+  // Timer bar
+  timerBarOuter: { position: 'relative', width: '100%', height: 4, background: 'var(--border)', borderRadius: 2, marginBottom: 8, overflow: 'hidden' },
+  timerBarFill: { height: '100%', borderRadius: 2 },
+  timerText: { position: 'absolute', right: 0, top: 6, display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600 },
   // Progress pips
-  progressPips: { display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 18 },
+  progressPips: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 16, marginBottom: 14 },
   pip: { width: 8, height: 8, borderRadius: '50%', transition: 'all 0.3s' },
   // Playing
+  hint: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--cyan)', background: 'var(--cyan-subtle)', padding: '5px 12px', borderRadius: 6, marginBottom: 10, display: 'inline-block', border: '1px solid var(--border)' },
   mTag: { display: 'inline-flex', alignItems: 'center', fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'var(--accent)', marginBottom: 8 },
   qTxt: { fontFamily: 'var(--font-body)', fontSize: 'clamp(18px,4.5vw,24px)', fontWeight: 600, lineHeight: 1.45, color: 'var(--text)', marginBottom: 24 },
   optGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
