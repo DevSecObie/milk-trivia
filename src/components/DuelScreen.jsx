@@ -41,11 +41,20 @@ function buildDuelPool(mode, allQuestions) {
       duelMode: 'whosaid',
     }))
   }
-  // Default: mc
-  return shuffleArray([...allQuestions]).slice(0, 10).map(q => ({
-    n: q.n, q: q.q, a: q.a, isScripture: !!q.isScripture,
-    duelMode: 'mc',
-  }))
+  // Default: mc — pre-build options so both players see the same choices
+  return shuffleArray([...allQuestions]).slice(0, 10).map(q => {
+    let wrong
+    if (q.isScripture) {
+      wrong = shuffleArray(ALL_REFS.filter(r => r !== q.a)).slice(0, 3)
+    } else {
+      wrong = shuffleArray(ALL_ANS.filter(a => a !== q.a)).slice(0, 3)
+    }
+    return {
+      n: q.n, q: q.q, a: q.a, isScripture: !!q.isScripture,
+      options: shuffleArray([q.a, ...wrong]),
+      duelMode: 'mc',
+    }
+  })
 }
 
 export default function DuelScreen({ onBack, user, allQuestions }) {
@@ -142,14 +151,17 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     setRoundStart(Date.now())
     setTimeLeft(TIMER_SECONDS)
 
-    // If question has pre-built options (scenario, whosaid), use them
+    // Always use pre-built options from the duel document (synced across players)
     if (q.options) {
       setOptions(q.options)
-    } else if (q.isScripture) {
-      const wrong = shuffleArray(ALL_REFS.filter(r => r !== q.a)).slice(0, 3)
-      setOptions(shuffleArray([q.a, ...wrong]))
     } else {
-      const wrong = shuffleArray(ALL_ANS.filter(a => a !== q.a)).slice(0, 3)
+      // Fallback for legacy duels without pre-built options
+      let wrong
+      if (q.isScripture) {
+        wrong = shuffleArray(ALL_REFS.filter(r => r !== q.a)).slice(0, 3)
+      } else {
+        wrong = shuffleArray(ALL_ANS.filter(a => a !== q.a)).slice(0, 3)
+      }
       setOptions(shuffleArray([q.a, ...wrong]))
     }
   }, [duelData?.currentRound, phase])
