@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Swords, Clock, Users, Copy, Check, X, Zap, Share2, Trophy, Shield, Flame, BookOpen, MessageCircle, AlertTriangle, Timer } from 'lucide-react'
+import { ArrowLeft, Swords, Clock, Users, Copy, Check, X, Zap, Share2, Trophy, Shield, Flame, BookOpen, MessageCircle, AlertTriangle } from 'lucide-react'
 import { createDuel, joinDuel, watchDuel, submitDuelAnswer, getOpenDuels, deleteDuel } from '../lib/firestoreService'
 import { isSoundOn } from '../lib/storage'
 import { playCorrect, playIncorrect, playClick } from '../lib/sounds'
@@ -393,45 +393,34 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
 
     return (
       <div style={st.container}>
-        {/* Battle Scoreboard */}
-        <div style={st.battleBar} className="duel-pulse-glow">
+        {/* Compact header: scores + timer */}
+        <div style={st.battleBar}>
           <div style={st.battlePlayer}>
-            <div style={st.battleAvatar}>
-              <Shield size={16} style={{ color: 'var(--cyan)' }} />
-            </div>
-            <div>
-              <div style={st.battleName}>{myName || 'You'}</div>
-              <div style={{ position: 'relative' }}>
-                <span style={{ ...st.battleScore, color: 'var(--cyan)' }}>{myScore || 0}</span>
-                {scorePopup && scorePopup.side === 'left' && (
-                  <span className="duel-float-up" style={{ ...st.popup, color: scorePopup.color }}>+1</span>
-                )}
-              </div>
+            <div style={st.battleName}>{myName || 'You'}</div>
+            <div style={{ position: 'relative' }}>
+              <span style={{ ...st.battleScore, color: 'var(--cyan)' }}>{myScore || 0}</span>
+              {scorePopup && scorePopup.side === 'left' && (
+                <span className="duel-float-up" style={{ ...st.popup, color: scorePopup.color }}>+1</span>
+              )}
             </div>
           </div>
 
           <div style={st.roundCenter}>
-            <Swords size={16} style={{ color: 'var(--accent)' }} />
             <div style={st.roundNum}>R{round + 1}/{duelData.totalRounds}</div>
-            {streak >= 2 && (
-              <div className="duel-streak" style={st.streakBadge}>
-                <Flame size={10} /> {streak}x
+            {!waitingForOther && (
+              <div style={{ ...st.timerInline, color: timerDanger ? 'var(--red)' : 'var(--text-muted)' }}>
+                {Math.ceil(timeLeft)}s
               </div>
             )}
           </div>
 
-          <div style={{ ...st.battlePlayer, flexDirection: 'row-reverse' }}>
-            <div style={{ ...st.battleAvatar, background: 'var(--red-subtle)', borderColor: 'rgba(255,51,102,0.3)' }}>
-              <Shield size={16} style={{ color: 'var(--red)' }} />
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={st.battleName}>{opName || 'Opponent'}</div>
-              <div style={{ position: 'relative' }}>
-                <span style={{ ...st.battleScore, color: 'var(--red)' }}>{opScore || 0}</span>
-                {scorePopup && scorePopup.side === 'right' && (
-                  <span className="duel-float-up" style={{ ...st.popup, color: scorePopup.color }}>+1</span>
-                )}
-              </div>
+          <div style={{ ...st.battlePlayer, textAlign: 'right' }}>
+            <div style={st.battleName}>{opName || 'Opponent'}</div>
+            <div style={{ position: 'relative' }}>
+              <span style={{ ...st.battleScore, color: 'var(--red)' }}>{opScore || 0}</span>
+              {scorePopup && scorePopup.side === 'right' && (
+                <span className="duel-float-up" style={{ ...st.popup, color: scorePopup.color }}>+1</span>
+              )}
             </div>
           </div>
         </div>
@@ -447,38 +436,13 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
                 : 'linear-gradient(90deg, var(--cyan-dim), var(--cyan))',
               transition: submitted ? 'none' : 'width 0.1s linear',
             }} />
-            <div style={{
-              ...st.timerText,
-              color: timerDanger ? 'var(--red)' : 'var(--text-muted)',
-            }}>
-              <Timer size={10} /> {Math.ceil(timeLeft)}s
-            </div>
           </div>
         )}
 
-        {/* Progress Pips */}
-        <div style={st.progressPips}>
-          {Array.from({ length: duelData.totalRounds }, (_, i) => (
-            <div key={i} style={{
-              ...st.pip,
-              background: i < round ? 'var(--accent)' : i === round ? 'var(--cyan)' : 'var(--border)',
-              boxShadow: i === round ? '0 0 8px var(--cyan)' : 'none',
-              transform: i === round ? 'scale(1.3)' : 'scale(1)',
-            }} />
-          ))}
-        </div>
-
         {waitingForOther ? (
           <div style={st.waitRound} className="animate-in">
-            <div style={st.waitIcon}>
-              <Clock size={28} style={{ color: 'var(--cyan)' }} />
-            </div>
+            <Clock size={24} style={{ color: 'var(--cyan)' }} />
             <div style={st.waitTitle}>WAITING FOR OPPONENT</div>
-            <div style={st.waitSub}>
-              {correct ? 'Great answer! Waiting for your opponent to respond...'
-                : correct === false ? 'Opponent is still answering...'
-                : 'Waiting for opponent...'}
-            </div>
             <div style={st.waitDots}>
               <span style={{ ...st.waitDot, animationDelay: '0s' }} />
               <span style={{ ...st.waitDot, animationDelay: '0.3s' }} />
@@ -487,14 +451,9 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
           </div>
         ) : (
           <div key={round} className="animate-in">
-            <div style={st.mTag}>
-              <Swords size={10} style={{ marginRight: 4 }} />
-              DUEL — ROUND {round + 1}
-            </div>
             {hint && <div style={st.hint}>{hint}</div>}
             <h2 style={st.qTxt}>{q.n}) {q.q}</h2>
 
-            {/* MC-style options with indicators */}
             <div style={st.optGrid}>
               {options.map((opt, i) => {
                 const isC = opt === q.a
@@ -530,38 +489,28 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
               })}
             </div>
 
-            {/* Feedback banner */}
+            {/* Compact feedback */}
             {submitted && (
               <div className={correct ? 'duel-scale-in' : 'duel-shake'} style={{
                 ...st.feedbackBanner,
                 background: correct ? 'var(--green-subtle)' : 'var(--red-subtle)',
                 borderColor: correct ? 'var(--green)' : 'var(--red)',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   {correct
-                    ? <Check size={18} style={{ color: 'var(--green)' }} />
-                    : <X size={18} style={{ color: 'var(--red)' }} />
+                    ? <Check size={14} style={{ color: 'var(--green)' }} />
+                    : <X size={14} style={{ color: 'var(--red)' }} />
                   }
-                  <span style={{ color: correct ? 'var(--green)' : 'var(--red)', fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: 1 }}>
+                  <span style={{ color: correct ? 'var(--green)' : 'var(--red)', fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: 12, letterSpacing: 1 }}>
                     {!selected ? 'TIME\'S UP!' : correct ? 'CORRECT!' : 'INCORRECT'}
                   </span>
                   {correct && streak >= 2 && (
                     <span className="duel-streak" style={st.streakInline}>
-                      <Flame size={12} /> {streak}x STREAK
+                      <Flame size={10} /> {streak}x
                     </span>
                   )}
+                  {!correct && <span style={{ fontSize: 11, color: 'var(--text-sec)', fontFamily: 'var(--font-mono)', marginLeft: 4 }}>{q.a}</span>}
                 </div>
-                {!correct && (
-                  <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-sec)', fontFamily: 'var(--font-mono)' }}>
-                    Answer: {q.a}
-                  </div>
-                )}
-                {selected && (
-                  <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    <Clock size={10} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                    {timeElapsed.toFixed(1)}s
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -682,45 +631,37 @@ const st = {
   vsBadge: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
   vsText: { fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 900, color: 'var(--accent)', letterSpacing: 4, textShadow: '0 0 20px rgba(251,191,36,0.5)' },
   // Battle Scoreboard
-  battleBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 4, backdropFilter: 'blur(10px)' },
-  battlePlayer: { display: 'flex', alignItems: 'center', gap: 8 },
-  battleAvatar: { width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cyan-subtle)', border: '1px solid rgba(0,212,255,0.3)' },
-  battleName: { fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 600, color: 'var(--text-sec)', letterSpacing: 0.5 },
-  battleScore: { fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900 },
-  roundCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  battleBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 2 },
+  battlePlayer: { display: 'flex', flexDirection: 'column' },
+  battleName: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 600, color: 'var(--text-sec)', letterSpacing: 0.5 },
+  battleScore: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 900 },
+  roundCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
   roundNum: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1 },
-  popup: { position: 'absolute', top: -8, left: '50%', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 900, pointerEvents: 'none' },
-  streakBadge: { display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--accent)', padding: '2px 6px', background: 'rgba(251,191,36,0.12)', borderRadius: 8 },
-  streakInline: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--accent)', marginLeft: 8 },
+  timerInline: { fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700 },
+  popup: { position: 'absolute', top: -8, left: '50%', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, pointerEvents: 'none' },
+  streakInline: { display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--accent)', marginLeft: 4 },
   // Timer bar
-  timerBarOuter: { position: 'relative', width: '100%', height: 4, background: 'var(--border)', borderRadius: 2, marginBottom: 8, overflow: 'hidden' },
+  timerBarOuter: { width: '100%', height: 3, background: 'var(--border)', borderRadius: 2, marginBottom: 12, overflow: 'hidden' },
   timerBarFill: { height: '100%', borderRadius: 2 },
-  timerText: { position: 'absolute', right: 0, top: 6, display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600 },
-  // Progress pips
-  progressPips: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 16, marginBottom: 14 },
-  pip: { width: 8, height: 8, borderRadius: '50%', transition: 'all 0.3s' },
   // Playing
-  hint: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--cyan)', background: 'var(--cyan-subtle)', padding: '5px 12px', borderRadius: 6, marginBottom: 10, display: 'inline-block', border: '1px solid var(--border)' },
-  mTag: { display: 'inline-flex', alignItems: 'center', fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'var(--accent)', marginBottom: 8 },
-  qTxt: { fontFamily: 'var(--font-body)', fontSize: 'clamp(18px,4.5vw,24px)', fontWeight: 600, lineHeight: 1.45, color: 'var(--text)', marginBottom: 24 },
-  optGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
-  opt: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', minHeight: 52, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 14, color: 'var(--text)', textAlign: 'left', width: '100%', transition: 'all 0.2s', cursor: 'pointer', backdropFilter: 'blur(8px)', lineHeight: 1.4 },
+  hint: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--cyan)', background: 'var(--cyan-subtle)', padding: '4px 10px', borderRadius: 6, marginBottom: 8, display: 'inline-block', border: '1px solid var(--border)' },
+  qTxt: { fontFamily: 'var(--font-body)', fontSize: 'clamp(17px,4vw,22px)', fontWeight: 600, lineHeight: 1.4, color: 'var(--text)', marginBottom: 16 },
+  optGrid: { display: 'flex', flexDirection: 'column', gap: 6 },
+  opt: { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', minHeight: 44, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--text)', textAlign: 'left', width: '100%', transition: 'all 0.2s', cursor: 'pointer', lineHeight: 1.35 },
   optSel: { borderColor: 'var(--cyan)', background: 'var(--cyan-subtle)', boxShadow: '0 0 12px rgba(0,212,255,0.1)' },
   optOk: { borderColor: 'var(--green)', background: 'var(--green-subtle)', boxShadow: '0 0 12px rgba(0,255,136,0.15)' },
   optBad: { borderColor: 'var(--red)', background: 'var(--red-subtle)' },
   optMiss: { borderColor: 'var(--cyan)', background: 'var(--cyan-subtle)', opacity: 0.6 },
-  ind: { width: 22, height: 22, minWidth: 22, borderRadius: '50%', border: '2px solid var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, transition: 'all 0.15s' },
+  ind: { width: 20, height: 20, minWidth: 20, borderRadius: '50%', border: '2px solid var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, transition: 'all 0.15s' },
   indSel: { borderColor: 'var(--cyan)', background: 'var(--cyan)', color: 'var(--bg)' },
   indOk: { borderColor: 'var(--green)', background: 'var(--green)', color: 'var(--bg)' },
   indBad: { borderColor: 'var(--red)', background: 'var(--red)', color: '#fff' },
   indMiss: { borderColor: 'var(--cyan)', background: 'var(--cyan)', color: 'var(--bg)' },
-  optTxt: { fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 500 },
-  feedbackBanner: { padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid', marginTop: 16 },
+  optTxt: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 },
+  feedbackBanner: { padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid', marginTop: 12 },
   // Waiting for opponent
-  waitRound: { textAlign: 'center', padding: '48px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 },
-  waitIcon: { width: 56, height: 56, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cyan-subtle)', border: '1px solid rgba(0,212,255,0.2)', marginBottom: 4 },
-  waitTitle: { fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 800, color: 'var(--text)', letterSpacing: 2 },
-  waitSub: { fontSize: 13, color: 'var(--text-sec)', maxWidth: 260, lineHeight: 1.4 },
+  waitRound: { textAlign: 'center', padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
+  waitTitle: { fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 800, color: 'var(--text)', letterSpacing: 2 },
   waitDots: { display: 'flex', gap: 8, marginTop: 8 },
   waitDot: { width: 8, height: 8, borderRadius: '50%', background: 'var(--cyan)', animation: 'pulse 1.5s infinite' },
   // Results
