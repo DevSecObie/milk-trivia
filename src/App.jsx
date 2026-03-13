@@ -43,7 +43,30 @@ export default function App() {
 
   // Firebase auth listener
   useEffect(() => {
-    return onAuthChange((u) => setUser(u))
+    return onAuthChange((u) => {
+      setUser(u)
+      // Auto-navigate to duel screen when arriving via shared duel link
+      if (u && new URLSearchParams(window.location.search).get('duel')) {
+        setScreen('duel')
+      }
+      // Sync local progress to Firestore on login
+      if (u && !u.isAnonymous) {
+        const xp = getXP()
+        const sessions = getSessions()
+        const totalAnswered = sessions.reduce((s, x) => s + x.total, 0)
+        const totalCorrect = sessions.reduce((s, x) => s + x.score, 0)
+        const streak = getStreak()
+        syncStats(u.uid, {
+          xp: xp.total, level: xp.level, title: xp.title,
+          totalAnswered, totalCorrect,
+          streak: streak.current,
+          survivalBest: getSurvivalBest(),
+          speedBest: getSpeedBest(),
+          achievements: checkAchievements().unlocked,
+          displayName: u.displayName || 'Anonymous',
+        }).catch(() => {})
+      }
+    })
   }, [])
 
   // Check for active (resumable) game on mount
