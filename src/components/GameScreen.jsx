@@ -169,11 +169,11 @@ export default function GameScreen({gameState,allRefs,onEnd,onQuit,onProgress}){
         <div style={st.optGrid}>{q.options.map((opt,i)=>{
           const isC=cSet.has(opt),isSel=selected.has(opt)
           let ss={}
-          if(submitted){if(isC&&isSel)ss=st.optOk;else if(!isC&&isSel)ss=st.optBad;else if(isC&&!isSel)ss=st.optMiss;else ss={opacity:0.35}}
+          if(submitted){if(isC&&isSel)ss=st.optOk;else if(!isC&&isSel)ss=st.optBad;else if(!isSel)ss={opacity:0.35}}
           else if(isSel)ss=st.optSel
           return(<button key={i} onClick={()=>{if(submitted)return;sfx(playClick);setSelected(new Set([opt]));doSubmitBible(new Set([opt]))}} disabled={submitted} style={{...st.opt,...ss}}>
             <div style={{...st.ind,...(isSel&&!submitted?st.indA:{}),...(submitted&&isC&&isSel?st.indOk:{}),...(submitted&&!isC&&isSel?st.indBad:{}),borderRadius:'50%'}}>
-              {submitted&&isC?'✓':submitted&&isSel&&!isC?'✗':isSel?'✓':''}</div>
+              {submitted&&isC&&isSel?'✓':submitted&&isSel&&!isC?'✗':isSel?'✓':''}</div>
             <span style={st.optTxt}>{opt}</span></button>)
         })}</div>
         <Feedback correct={correct} answer={!correct&&submitted?q.a:null}/>
