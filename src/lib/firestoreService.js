@@ -42,9 +42,16 @@ export async function getLeaderboard(type = 'xp', maxResults = 50) {
 }
 
 // ===== MULTIPLAYER DUEL =====
+function withTimeout(promise, ms = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out. Please check your connection and try again.')), ms)),
+  ])
+}
+
 export async function createDuel(uid, displayName, questions) {
   const duelRef = doc(collection(db, 'duels'))
-  await setDoc(duelRef, {
+  await withTimeout(setDoc(duelRef, {
     hostUid: uid,
     hostName: displayName || 'Player 1',
     hostScore: 0,
@@ -60,22 +67,22 @@ export async function createDuel(uid, displayName, questions) {
     totalRounds: questions.length,
     status: 'waiting', // waiting, playing, finished
     createdAt: serverTimestamp(),
-  })
+  }))
   return duelRef.id
 }
 
 export async function joinDuel(duelId, uid, displayName) {
   const duelRef = doc(db, 'duels', duelId)
-  const snap = await getDoc(duelRef)
+  const snap = await withTimeout(getDoc(duelRef))
   if (!snap.exists()) throw new Error('Duel not found')
   const data = snap.data()
   if (data.guestUid) throw new Error('Duel is full')
   if (data.hostUid === uid) throw new Error('Cannot join your own duel')
-  await updateDoc(duelRef, {
+  await withTimeout(updateDoc(duelRef, {
     guestUid: uid,
     guestName: displayName || 'Player 2',
     status: 'playing',
-  })
+  }))
   return data
 }
 
@@ -87,7 +94,7 @@ export function watchDuel(duelId, callback) {
 
 export async function submitDuelAnswer(duelId, isHost, round, correct, timeMs) {
   const duelRef = doc(db, 'duels', duelId)
-  await runTransaction(db, async (transaction) => {
+  await withTimeout(runTransaction(db, async (transaction) => {
     const snap = await transaction.get(duelRef)
     if (!snap.exists()) return
     const data = snap.data()
@@ -112,7 +119,7 @@ export async function submitDuelAnswer(duelId, isHost, round, correct, timeMs) {
     }
 
     transaction.update(duelRef, update)
-  })
+  }))
 }
 
 export async function getOpenDuels(maxResults = 20) {
@@ -122,7 +129,7 @@ export async function getOpenDuels(maxResults = 20) {
     orderBy('createdAt', 'desc'),
     limit(maxResults)
   )
-  const snap = await getDocs(q)
+  const snap = await withTimeout(getDocs(q))
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
 
