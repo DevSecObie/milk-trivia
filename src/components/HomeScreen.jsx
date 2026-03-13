@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Crown, Award, Shield, User, LogIn, Swords } from 'lucide-react'
-import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress, getXP, RANKS, checkAchievements, getSurvivalBest, getSpeedBest } from '../lib/storage'
+import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress, getXP, RANKS, getSurvivalBest, getSpeedBest } from '../lib/storage'
 import { signInAsGuest, signInWithGoogle } from '../lib/authService'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
 import ChristIcon from './ChristIcon'
@@ -65,7 +65,6 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
   const xp = getXP()
   const nextRank = RANKS.find(r => r.xpNeeded > xp.total)
   const xpPct = nextRank ? Math.round(((xp.total - (RANKS[xp.level - 1]?.xpNeeded || 0)) / (nextRank.xpNeeded - (RANKS[xp.level - 1]?.xpNeeded || 0))) * 100) : 100
-  const achievements = checkAchievements()
   const survivalBest = getSurvivalBest()
   const speedBest = getSpeedBest()
 
@@ -144,103 +143,72 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
         <p style={s.subtitle}>CyberJudah.io — Scripture Trivia</p>
       </header>
 
-      {/* Streak & Stats bar */}
-      <div style={s.streakBar}>
-        <div style={s.streakItem}>
-          <Flame size={16} style={{ color: streak.current > 0 ? 'var(--accent)' : 'var(--text-muted)' }} />
-          <span style={s.streakNum}>{streak.current}</span>
-          <span style={s.streakLabel}>day streak</span>
-        </div>
-        <div style={s.streakDivider} />
-        <div style={s.streakItem}>
-          <Target size={16} style={{ color: 'var(--cyan)' }} />
-          <span style={s.streakNum}>{totalStudied}</span>
-          <span style={s.streakLabel}>answered</span>
-        </div>
-        <div style={s.streakDivider} />
-        <div style={s.streakItem}>
-          <AlertCircle size={16} style={{ color: missedCount > 0 ? 'var(--red)' : 'var(--green)' }} />
-          <span style={s.streakNum}>{missedCount}</span>
-          <span style={s.streakLabel}>missed</span>
-        </div>
-      </div>
-
-      {/* XP / Rank */}
-      <div style={s.xpCard}>
-        <div style={s.xpHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Award size={16} style={{ color: 'var(--accent)' }} />
-            <span style={s.xpTitle}>LEVEL {xp.level} — {xp.title}</span>
+      {/* Stats + XP + Daily Goal — combined card */}
+      <div style={s.comboCard}>
+        <div style={s.statsRow}>
+          <div style={s.statItem}>
+            <Flame size={14} style={{ color: streak.current > 0 ? 'var(--accent)' : 'var(--text-muted)' }} />
+            <span style={s.statNum}>{streak.current}</span>
+            <span style={s.statLabel}>streak</span>
           </div>
-          <span style={s.xpTotal}>{xp.total} XP</span>
+          <div style={s.statDivider} />
+          <div style={s.statItem}>
+            <Target size={14} style={{ color: 'var(--cyan)' }} />
+            <span style={s.statNum}>{totalStudied}</span>
+            <span style={s.statLabel}>answered</span>
+          </div>
+          <div style={s.statDivider} />
+          <div style={s.statItem}>
+            <AlertCircle size={14} style={{ color: missedCount > 0 ? 'var(--red)' : 'var(--green)' }} />
+            <span style={s.statNum}>{missedCount}</span>
+            <span style={s.statLabel}>missed</span>
+          </div>
         </div>
-        <div style={s.goalBarOuter}>
-          <div style={{ ...s.goalBarFill, width: `${xpPct}%`, background: 'linear-gradient(90deg, var(--accent), #D97706)' }} />
-        </div>
-        <div style={s.xpNext}>{nextRank ? `${nextRank.xpNeeded - xp.total} XP to ${nextRank.title}` : 'Max rank achieved!'}</div>
-      </div>
 
-      {/* Achievements */}
-      {achievements.unlocked.length > 0 && (
-        <div style={s.achRow}>
-          {achievements.all.filter(a => achievements.unlocked.includes(a.id)).slice(0, 6).map(a => (
-            <div key={a.id} style={s.achBadge} title={`${a.name}: ${a.desc}`}>
-              <span style={{ fontSize: 16 }}>{a.icon}</span>
-              <span style={s.achName}>{a.name}</span>
+        <div style={s.progressSection}>
+          <div style={s.progressRow}>
+            <span style={s.progressLabel}><Award size={12} style={{ color: 'var(--accent)', marginRight: 4 }} />Lv{xp.level} {xp.title}</span>
+            <span style={s.progressVal}>{xp.total} XP</span>
+          </div>
+          <div style={s.barOuter}>
+            <div style={{ ...s.barFill, width: `${xpPct}%`, background: 'linear-gradient(90deg, var(--accent), #D97706)' }} />
+          </div>
+        </div>
+
+        <div style={s.progressSection}>
+          <div style={s.progressRow}>
+            <span style={s.progressLabel}><Star size={12} style={{ color: goalMet ? 'var(--accent)' : 'var(--cyan)', marginRight: 4 }} />Daily Goal</span>
+            <button onClick={() => setShowGoalPicker(!showGoalPicker)} style={s.goalEditBtn}>
+              {goalMet ? `${dailyProgress.count} done` : `${dailyProgress.count}/${dailyGoalVal}`}
+            </button>
+          </div>
+          <div style={s.barOuter}>
+            <div style={{ ...s.barFill, width: `${goalPct}%`, background: goalMet ? 'var(--green)' : 'var(--cyan)' }} />
+          </div>
+          {showGoalPicker && (
+            <div style={s.goalPicker}>
+              {[10, 20, 30, 50, 100].map(v => (
+                <button key={v} onClick={() => handleGoalChange(v)} style={{ ...s.pill, ...(dailyGoalVal === v ? s.pillActive : {}) }}>{v}</button>
+              ))}
             </div>
-          ))}
-          {achievements.unlocked.length > 6 && (
-            <div style={s.achMore}>+{achievements.unlocked.length - 6}</div>
           )}
         </div>
-      )}
-
-      {/* Daily Study Goal */}
-      <div style={s.goalCard}>
-        <div style={s.goalHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Star size={16} style={{ color: goalMet ? 'var(--accent)' : 'var(--cyan)' }} />
-            <span style={s.goalTitle}>DAILY GOAL</span>
-          </div>
-          <button onClick={() => setShowGoalPicker(!showGoalPicker)} style={s.goalEditBtn}>{dailyGoalVal}q/day</button>
-        </div>
-        <div style={s.goalBarOuter}>
-          <div style={{ ...s.goalBarFill, width: `${goalPct}%`, background: goalMet ? 'var(--green)' : 'var(--cyan)' }} />
-        </div>
-        <div style={s.goalText}>
-          {goalMet
-            ? `Goal reached! ${dailyProgress.count} questions today`
-            : `${dailyProgress.count} / ${dailyGoalVal} questions today`}
-        </div>
-        {showGoalPicker && (
-          <div style={s.goalPicker}>
-            {[10, 20, 30, 50, 100].map(v => (
-              <button key={v} onClick={() => handleGoalChange(v)} style={{ ...s.pill, ...(dailyGoalVal === v ? s.pillActive : {}) }}>{v}</button>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Question of the Day */}
+      {/* Question of the Day — compact */}
       {qotdQuestion && (
         <div style={s.qotdCard}>
-          <div style={s.qotdHeader}>
-            <Clock size={14} style={{ color: 'var(--accent)' }} />
-            <span style={s.qotdLabel}>QUESTION OF THE DAY</span>
-            {qotd.answered && (
-              <span style={{ ...s.qotdBadge, background: qotd.correct ? 'var(--green-subtle)' : 'var(--red-subtle)', color: qotd.correct ? 'var(--green)' : 'var(--red)', borderColor: qotd.correct ? 'var(--green)' : 'var(--red)' }}>
-                {qotd.correct ? '✓ Correct' : '✗ Missed'}
+          <div style={s.qotdRow}>
+            <Clock size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+            <span style={s.qotdQ}>Q{qotdQuestion.n}) {qotdQuestion.q.length > 60 ? qotdQuestion.q.slice(0, 57) + '...' : qotdQuestion.q}</span>
+            {!qotd.answered ? (
+              <button onClick={() => onQOTD(qotdQuestion)} style={s.qotdBtn}>Answer</button>
+            ) : (
+              <span style={{ ...s.qotdBadge, color: qotd.correct ? 'var(--green)' : 'var(--red)' }}>
+                {qotd.correct ? '✓' : '✗'}
               </span>
             )}
           </div>
-          <p style={s.qotdQ}>Q{qotdQuestion.n}) {qotdQuestion.q}</p>
-          {!qotd.answered ? (
-            <button onClick={() => onQOTD(qotdQuestion)} style={s.qotdBtn}>Answer Now</button>
-          ) : (
-            <div style={s.qotdAns}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan)' }}>{qotdQuestion.a}</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -382,29 +350,37 @@ const s = {
   topControls: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 },
   topRight: { display: 'flex', gap: 8 },
   iconBtn: { width: 36, height: 36, minWidth: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-sec)', cursor: 'pointer', padding: 0, flexShrink: 0 },
-  header: { textAlign: 'center', marginBottom: 20 },
-  logo: { width: 100, height: 100, borderRadius: 14, marginBottom: 12, filter: 'drop-shadow(0 0 20px rgba(0,212,255,0.3))' },
+  header: { textAlign: 'center', marginBottom: 14 },
+  logo: { width: 80, height: 80, borderRadius: 12, marginBottom: 8, filter: 'drop-shadow(0 0 20px rgba(0,212,255,0.3))' },
   title: { fontFamily: 'var(--font-display)', fontSize: 'clamp(20px, 5vw, 30px)', fontWeight: 800, color: 'var(--cyan)', letterSpacing: 2, lineHeight: 1.2, textShadow: '0 0 30px rgba(0,212,255,0.2)' },
   subtitle: { fontSize: 14, color: 'var(--text-sec)', fontWeight: 500, marginTop: 4, letterSpacing: 1 },
-  streakBar: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 20, backdropFilter: 'blur(10px)' },
-  streakItem: { display: 'flex', alignItems: 'center', gap: 5 },
-  streakNum: { fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800, color: 'var(--text)' },
-  streakLabel: { fontSize: 11, color: 'var(--text-muted)' },
-  streakDivider: { width: 1, height: 20, background: 'var(--border)' },
-  resumeBanner: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(0,212,255,0.08)', border: '1px solid var(--cyan)', borderRadius: 'var(--radius-sm)', marginBottom: 18, fontSize: 13, color: 'var(--text)' },
+  // Combined stats + progress card
+  comboCard: { padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 10 },
+  statsRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 },
+  statItem: { display: 'flex', alignItems: 'center', gap: 4 },
+  statNum: { fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 800, color: 'var(--text)' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted)' },
+  statDivider: { width: 1, height: 16, background: 'var(--border)' },
+  progressSection: { marginBottom: 6 },
+  progressRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  progressLabel: { display: 'flex', alignItems: 'center', fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 1, color: 'var(--text-sec)' },
+  progressVal: { fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' },
+  barOuter: { width: '100%', height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 2, transition: 'width 0.5s ease' },
+  resumeBanner: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(0,212,255,0.08)', border: '1px solid var(--cyan)', borderRadius: 'var(--radius-sm)', marginBottom: 10, fontSize: 12, color: 'var(--text)' },
   resumeBtn: { padding: '6px 14px', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 1, background: 'var(--cyan)', border: 'none', borderRadius: 6, color: 'var(--bg)', cursor: 'pointer' },
   dismissBtn: { padding: '6px 10px', fontSize: 14, background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', cursor: 'pointer' },
-  section: { marginBottom: 18 },
+  section: { marginBottom: 12 },
   secLabel: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'var(--cyan-dim)', marginBottom: 8 },
   modeGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 },
-  modeCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '14px 6px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s', outline: 'none', textAlign: 'center', cursor: 'pointer', backdropFilter: 'blur(10px)' },
+  modeCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 4px 8px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s', outline: 'none', textAlign: 'center', cursor: 'pointer' },
   modeActive: { borderColor: 'var(--cyan)', background: 'var(--cyan-subtle)', boxShadow: '0 0 15px rgba(0,212,255,0.12)' },
   modeActiveGold: { borderColor: 'var(--accent)', background: 'rgba(251,191,36,0.08)', boxShadow: '0 0 15px rgba(251,191,36,0.12)' },
   modeName: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 600, letterSpacing: 0.8, marginBottom: 1 },
   modeDesc: { fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.2 },
   catGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   catPill: { padding: '5px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--border)', borderRadius: 16, background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' },
-  card: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 18, backdropFilter: 'blur(10px)' },
+  card: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 12 },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(0,212,255,0.04)', gap: 8, flexWrap: 'wrap' },
   label: { fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' },
   pills: { display: 'flex', gap: 4, flexWrap: 'wrap' },
@@ -417,41 +393,21 @@ const s = {
   toggleOn: { background: 'var(--cyan)', borderColor: 'var(--cyan)' },
   thumb: { width: 14, height: 14, borderRadius: '50%', background: 'var(--text-muted)', position: 'absolute', top: 2, left: 2, transition: 'all 0.2s' },
   thumbOn: { left: 20, background: 'var(--bg)' },
-  startBtn: { display: 'flex', width: '100%', justifyContent: 'center', padding: '15px 24px', fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 3, color: 'var(--bg)', background: 'linear-gradient(135deg, var(--cyan), var(--cyan-dim))', border: 'none', borderRadius: 'var(--radius)', boxShadow: '0 0 25px rgba(0,212,255,0.2)', marginBottom: 10, cursor: 'pointer' },
+  startBtn: { display: 'flex', width: '100%', justifyContent: 'center', padding: '13px 24px', fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 2, color: 'var(--bg)', background: 'linear-gradient(135deg, var(--cyan), var(--cyan-dim))', border: 'none', borderRadius: 'var(--radius-sm)', boxShadow: '0 0 20px rgba(0,212,255,0.15)', marginBottom: 8, cursor: 'pointer' },
   dlLink: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '10px 16px', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--cyan-dim)', background: 'var(--cyan-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', textDecoration: 'none' },
-  // Daily Goal styles
-  goalCard: { padding: '14px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 14, backdropFilter: 'blur(10px)' },
-  goalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  goalTitle: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'var(--cyan-dim)' },
-  goalEditBtn: { padding: '3px 10px', fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--cyan)', background: 'var(--cyan-subtle)', border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer' },
-  goalBarOuter: { width: '100%', height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
-  goalBarFill: { height: '100%', borderRadius: 3, transition: 'width 0.5s ease' },
-  goalText: { fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' },
-  goalPicker: { display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' },
+  goalEditBtn: { padding: '2px 8px', fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--cyan)', background: 'transparent', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer' },
+  goalPicker: { display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' },
   // QOTD styles
-  qotdCard: { padding: '14px 16px', background: 'linear-gradient(135deg, rgba(251,191,36,0.06), rgba(0,212,255,0.04))', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 'var(--radius)', marginBottom: 14 },
-  qotdHeader: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  qotdLabel: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'var(--accent)' },
-  qotdBadge: { padding: '2px 8px', fontSize: 10, fontWeight: 600, borderRadius: 10, border: '1px solid', marginLeft: 'auto' },
-  qotdQ: { fontSize: 14, fontWeight: 500, color: 'var(--text)', lineHeight: 1.5, marginBottom: 10 },
-  qotdBtn: { padding: '8px 18px', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 1, color: 'var(--bg)', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
-  qotdAns: { padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' },
+  qotdCard: { padding: '8px 12px', background: 'linear-gradient(135deg, rgba(251,191,36,0.04), rgba(0,212,255,0.02))', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 'var(--radius-sm)', marginBottom: 10 },
+  qotdRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  qotdQ: { flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--text)', lineHeight: 1.4 },
+  qotdBtn: { padding: '4px 12px', fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: 'var(--bg)', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 },
+  qotdBadge: { fontSize: 14, fontWeight: 700, flexShrink: 0 },
   // Quick action styles
-  quickRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 },
-  quickBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 16px', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 1, color: 'var(--text)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', backdropFilter: 'blur(10px)' },
-  // XP styles
-  xpCard: { padding: '12px 16px', background: 'linear-gradient(135deg, rgba(251,191,36,0.06), rgba(0,212,255,0.04))', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 'var(--radius)', marginBottom: 12 },
-  xpHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  xpTitle: { fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--accent)' },
-  xpTotal: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' },
-  xpNext: { fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 4 },
-  // Achievement styles
-  achRow: { display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
-  achBadge: { display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, fontSize: 10 },
-  achName: { fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 600, color: 'var(--text-sec)', letterSpacing: 0.5 },
-  achMore: { display: 'flex', alignItems: 'center', padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16 },
+  quickRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 },
+  quickBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 12px', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 1, color: 'var(--text)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
   // Auth styles
-  authCard: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: 14, flexWrap: 'wrap' },
+  authCard: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: 10, flexWrap: 'wrap' },
   authText: { fontSize: 12, fontWeight: 600, color: 'var(--text-sec)', flex: 1, minWidth: 100 },
   authBtn: { padding: '6px 14px', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: '#fff', background: 'var(--cyan)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
   authBtnSec: { padding: '6px 14px', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: 0.5, color: 'var(--text-sec)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' },
