@@ -23,7 +23,8 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
   const [roundStart, setRoundStart] = useState(null)
   const unsubRef = useRef(null)
 
-  const allAnswers = useRef(allQuestions.filter(q => !q.isScripture && q.a.length < 60).map(q => q.a))
+  const scriptureAnswers = useRef(allQuestions.filter(q => q.isScripture).map(q => q.a))
+  const nonScriptureAnswers = useRef(allQuestions.filter(q => !q.isScripture && q.a.length < 60).map(q => q.a))
 
   const isHost = duelData?.hostUid === user?.uid
   const myScore = isHost ? duelData?.hostScore : duelData?.guestScore
@@ -66,7 +67,8 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     setSubmitted(false)
     setCorrect(null)
     setRoundStart(Date.now())
-    const wrong = shuffleArray(allAnswers.current.filter(a => a !== q.a)).slice(0, 3)
+    const answerPool = q.isScripture ? scriptureAnswers.current : nonScriptureAnswers.current
+    const wrong = shuffleArray(answerPool.filter(a => a !== q.a)).slice(0, 3)
     setOptions(shuffleArray([q.a, ...wrong]))
   }, [duelData?.currentRound, phase])
 
@@ -74,7 +76,7 @@ export default function DuelScreen({ onBack, user, allQuestions }) {
     setLoading(true); setError(null)
     try {
       const pool = shuffleArray([...allQuestions]).slice(0, 10).map(q => ({
-        n: q.n, q: q.q, a: q.a,
+        n: q.n, q: q.q, a: q.a, isScripture: !!q.isScripture,
       }))
       const id = await createDuel(user.uid, user.displayName || 'Player 1', pool)
       setDuelId(id)
