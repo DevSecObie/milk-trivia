@@ -1,5 +1,5 @@
 import { db } from './firebase'
-import { doc, setDoc, getDoc, getDocs, collection, query, orderBy, limit, updateDoc, serverTimestamp, onSnapshot, deleteDoc, where } from 'firebase/firestore'
+import { doc, setDoc, getDoc, getDocs, collection, query, orderBy, limit, updateDoc, serverTimestamp, onSnapshot, deleteDoc, where, runTransaction } from 'firebase/firestore'
 
 // ===== USER PROFILE =====
 export async function saveProfile(uid, data) {
@@ -87,30 +87,32 @@ export function watchDuel(duelId, callback) {
 
 export async function submitDuelAnswer(duelId, isHost, round, correct, timeMs) {
   const duelRef = doc(db, 'duels', duelId)
-  const snap = await getDoc(duelRef)
-  if (!snap.exists()) return
-  const data = snap.data()
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(duelRef)
+    if (!snap.exists()) return
+    const data = snap.data()
 
-  const prefix = isHost ? 'host' : 'guest'
-  const answers = [...(data[`${prefix}Answers`] || [])]
-  answers.push({ round, correct, timeMs })
+    const prefix = isHost ? 'host' : 'guest'
+    const answers = [...(data[`${prefix}Answers`] || [])]
+    answers.push({ round, correct, timeMs })
 
-  const update = {
-    [`${prefix}Answers`]: answers,
-    [`${prefix}Score`]: answers.filter(a => a.correct).length,
-  }
-
-  // Advance round if both answered
-  const otherPrefix = isHost ? 'guest' : 'host'
-  const otherAnswers = data[`${otherPrefix}Answers`] || []
-  if (otherAnswers.length >= round + 1) {
-    update.currentRound = round + 1
-    if (round + 1 >= data.totalRounds) {
-      update.status = 'finished'
+    const update = {
+      [`${prefix}Answers`]: answers,
+      [`${prefix}Score`]: answers.filter(a => a.correct).length,
     }
-  }
 
-  await updateDoc(duelRef, update)
+    // Advance round if both answered
+    const otherPrefix = isHost ? 'guest' : 'host'
+    const otherAnswers = data[`${otherPrefix}Answers`] || []
+    if (otherAnswers.length >= round + 1) {
+      update.currentRound = round + 1
+      if (round + 1 >= data.totalRounds) {
+        update.status = 'finished'
+      }
+    }
+
+    transaction.update(duelRef, update)
+  })
 }
 
 export async function getOpenDuels(maxResults = 20) {
