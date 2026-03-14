@@ -3,3 +3,10 @@ dist/
 .env
 .env.local
 .env.*.local
+# Firebase
+.firebase/
+
+# Environment
+.env
+.env.local
+.env.*.local

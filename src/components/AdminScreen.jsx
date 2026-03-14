@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getAllUsers } from '../lib/firestoreService'
 
-const ADMIN_EMAILS = ['obediyah.ben.israel@gmail.com', 'oisrae1@wgu.edu']
+const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean)
 
 export default function AdminScreen({ onBack, currentUid, userEmail }) {
   if (!ADMIN_EMAILS.includes(userEmail)) {
