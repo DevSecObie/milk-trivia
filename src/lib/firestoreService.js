@@ -156,3 +156,37 @@ export async function deleteUserData(uid) {
   const { db } = await import('./firebase')
   await deleteDoc(doc(db, 'users', uid))
 }
+
+// ===== WEEKLY CHALLENGES =====
+export async function setWeeklyChallenge(challenge) {
+  const { setDoc, doc, serverTimestamp } = await import('firebase/firestore')
+  await setDoc(doc(db, 'config', 'weeklyChallenge'), {
+    ...challenge,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function getWeeklyChallenge() {
+  const snap = await getDoc(doc(db, 'config', 'weeklyChallenge'))
+  return snap.exists() ? snap.data() : null
+}
+
+export async function getWeeklyLeaderboard(challengeId, maxResults = 20) {
+  const q = query(
+    collection(db, 'challengeEntries'),
+    where('challengeId', '==', challengeId),
+    orderBy('score', 'desc'),
+    limit(maxResults)
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map((d, i) => ({ rank: i + 1, ...d.data() }))
+}
+
+export async function submitChallengeEntry(uid, displayName, challengeId, score, total) {
+  const { setDoc, doc, serverTimestamp } = await import('firebase/firestore')
+  await setDoc(doc(db, 'challengeEntries', `${challengeId}_${uid}`), {
+    uid, displayName, challengeId, score, total,
+    pct: total > 0 ? Math.round((score / total) * 100) : 0,
+    submittedAt: serverTimestamp(),
+  })
+}

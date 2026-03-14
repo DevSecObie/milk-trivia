@@ -18,6 +18,7 @@ export default function ProfileScreen({ onBack, user, onLogout }) {
   const totalCorrect = sessions.reduce((s, x) => s + x.score, 0)
 
   const [editing, setEditing] = useState(false)
+  const [photoURL, setPhotoURL] = useState(user?.photoURL || null)
   const [nameInput, setNameInput] = useState(user?.displayName || '')
 
   const handleSaveName = async () => {
@@ -38,8 +39,8 @@ export default function ProfileScreen({ onBack, user, onLogout }) {
       {/* Profile Card */}
       <div style={st.profileCard}>
         <div style={st.avatar}>
-          {user?.photoURL ? (
-            <img src={user.photoURL} alt="" style={st.avatarImg} />
+          {photoURL ? (
+            <img src={photoURL} alt="" style={st.avatarImg} />
           ) : (
             <div style={st.avatarPlaceholder}>{(user?.displayName || 'A')[0].toUpperCase()}</div>
           )}

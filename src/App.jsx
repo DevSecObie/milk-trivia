@@ -7,6 +7,8 @@ import { VIRTUOUS_QUESTIONS, VIRTUOUS_SCENARIOS, VIRTUOUS_FILL_INS } from './dat
 import SCRIPTURE_MATCHES from './data/scriptureMatch'
 import ParticleBackground from './components/ParticleBackground'
 import LoginScreen from './components/LoginScreen'
+import LoadingScreen from './components/LoadingScreen'
+import InstallPrompt from './components/InstallPrompt'
 import HomeScreen from './components/HomeScreen'
 import GameScreen from './components/GameScreen'
 import ResultsScreen from './components/ResultsScreen'
@@ -444,9 +446,7 @@ export default function App() {
     return (
       <>
         <ParticleBackground theme={theme} />
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: 'var(--text-secondary, rgba(255,255,255,0.6))' }}>Loading...</p>
-        </div>
+        <LoadingScreen />
       </>
     )
   }
@@ -519,6 +519,7 @@ export default function App() {
       {screen === 'duel' && user && (
         <DuelScreen onBack={goHome} user={user} allQuestions={ALL_Q} />
       )}
+      <InstallPrompt />
       {screen === 'admin' && user && (
         <AdminScreen onBack={goHome} currentUid={user.uid} userEmail={user.email} />
       )}

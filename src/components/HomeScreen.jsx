@@ -134,6 +134,11 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
           <span style={s.authText}>{user.displayName || 'Anonymous'}</span>
           <button onClick={onDuel} style={s.duelNavBtn}><Swords size={14} /> Duel</button>
           {onAdmin && <button onClick={onAdmin} style={s.duelNavBtn}>👑 Admin</button>}
+          <button onClick={() => {
+            const text = '🥛 Test your Scripture knowledge with Milk Trivia!\nhttps://milk.cyberjudah.io'
+            if (navigator.share) navigator.share({ title: 'Milk Trivia', text }).catch(() => {})
+            else { navigator.clipboard.writeText(text); alert('Link copied!') }
+          }} style={s.duelNavBtn}>📨 Invite</button>
         </div>
       )}
 
