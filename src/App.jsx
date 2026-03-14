@@ -6,6 +6,7 @@ import SCENARIOS from './data/scenarios'
 import { VIRTUOUS_QUESTIONS, VIRTUOUS_SCENARIOS, VIRTUOUS_FILL_INS } from './data/virtuous'
 import SCRIPTURE_MATCHES from './data/scriptureMatch'
 import ParticleBackground from './components/ParticleBackground'
+import LoginScreen from './components/LoginScreen'
 import HomeScreen from './components/HomeScreen'
 import GameScreen from './components/GameScreen'
 import ResultsScreen from './components/ResultsScreen'
@@ -17,9 +18,10 @@ import ScriptureMatchScreen from './components/ScriptureMatchScreen'
 import LeaderboardScreen from './components/LeaderboardScreen'
 import ProfileScreen from './components/ProfileScreen'
 import DuelScreen from './components/DuelScreen'
+import AdminScreen from './components/AdminScreen'
 import { onAuthChange, logOut } from './lib/authService'
-import { syncStats } from './lib/firestoreService'
-import { getActiveGame, clearActiveGame, saveActiveGame, getTheme, setThemePref, saveSettings, getMissed, getWeightedQuestions, updateStreak, saveSessions, recordQuestionResult, addMissed, removeMissed, addDailyProgress, updateLevelUp, markQOTDAnswered, addXP, getXPForAction, checkAchievements, setSurvivalBest, setSpeedBest, getXP, getSurvivalBest, getSpeedBest, getStreak, getSessions } from './lib/storage'
+import { initUserData } from './lib/firestoreService'
+import { initStorage, flushStorage, getActiveGame, clearActiveGame, saveActiveGame, getTheme, setThemePref, saveSettings, getMissed, getWeightedQuestions, updateStreak, saveSessions, recordQuestionResult, addMissed, removeMissed, addDailyProgress, updateLevelUp, markQOTDAnswered, addXP, getXPForAction, checkAchievements, setSurvivalBest, setSpeedBest, getXP, getSurvivalBest, getSpeedBest, getStreak, getSessions } from './lib/storage'
 
 function shuffleArray(arr) {
   const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }; return a
@@ -35,6 +37,7 @@ export default function App() {
   const [gameState, setGameState] = useState(null)
   const [theme, setTheme] = useState(getTheme())
   const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -43,29 +46,18 @@ export default function App() {
 
   // Firebase auth listener
   useEffect(() => {
-    return onAuthChange((u) => {
+    return onAuthChange(async (u) => {
       setUser(u)
+      if (u) {
+        await initUserData(u.uid, u.displayName || u.email || 'Anonymous')
+        await initStorage(u.uid)
+      }
+      setAuthLoading(false)
       // Auto-navigate to duel screen when arriving via shared duel link
       if (u && new URLSearchParams(window.location.search).get('duel')) {
         setScreen('duel')
       }
-      // Sync local progress to Firestore on login
-      if (u && !u.isAnonymous) {
-        const xp = getXP()
-        const sessions = getSessions()
-        const totalAnswered = sessions.reduce((s, x) => s + x.total, 0)
-        const totalCorrect = sessions.reduce((s, x) => s + x.score, 0)
-        const streak = getStreak()
-        syncStats(u.uid, {
-          xp: xp.total, level: xp.level, title: xp.title,
-          totalAnswered, totalCorrect,
-          streak: streak.current,
-          survivalBest: getSurvivalBest(),
-          speedBest: getSpeedBest(),
-          achievements: checkAchievements().unlocked,
-          displayName: u.displayName || 'Anonymous',
-        }).catch(() => {})
-      }
+
     })
   }, [])
 
@@ -346,24 +338,7 @@ export default function App() {
     saveActiveGame(state)
   }, [])
 
-  // Sync local stats to Firestore
-  const syncToFirestore = useCallback(() => {
-    if (!user) return
-    const xp = getXP()
-    const sessions = getSessions()
-    const totalAnswered = sessions.reduce((s, x) => s + x.total, 0)
-    const totalCorrect = sessions.reduce((s, x) => s + x.score, 0)
-    const streak = getStreak()
-    syncStats(user.uid, {
-      xp: xp.total, level: xp.level, title: xp.title,
-      totalAnswered, totalCorrect,
-      streak: streak.current,
-      survivalBest: getSurvivalBest(),
-      speedBest: getSpeedBest(),
-      achievements: checkAchievements().unlocked,
-      displayName: user.displayName || 'Anonymous',
-    }).catch(() => {})
-  }, [user])
+
 
   const endGame = useCallback((answers, score) => {
     clearActiveGame()
@@ -405,11 +380,11 @@ export default function App() {
 
     // Award XP
     awardXP(score, answers.length)
-    syncToFirestore()
+    flushStorage()
 
     setGameState(prev => ({ ...prev, answers, score, timeSeconds: elapsed }))
     setScreen('results')
-  }, [gameState, awardXP, syncToFirestore])
+  }, [gameState, awardXP])
 
   const goHome = useCallback(() => { setScreen('home'); setGameState(null) }, [])
   const goStats = useCallback(() => setScreen('stats'), [])
@@ -417,6 +392,7 @@ export default function App() {
   const goLeaderboard = useCallback(() => setScreen('leaderboard'), [])
   const goProfile = useCallback(() => setScreen('profile'), [])
   const goDuel = useCallback(() => setScreen('duel'), [])
+  const goAdmin = useCallback(() => setScreen('admin'), [])
   const handleLogout = useCallback(async () => { await logOut(); goHome() }, [goHome])
 
   const onSurvivalEnd = useCallback((score) => {
@@ -425,9 +401,9 @@ export default function App() {
     saveSessions({ mode: 'survival', score, total: score, pct: 100, timeSeconds: 0 })
     updateStreak()
     awardXP(score, score)
-    syncToFirestore()
+    flushStorage()
     goHome()
-  }, [awardXP, goHome, syncToFirestore])
+  }, [awardXP, goHome])
 
   const onSpeedEnd = useCallback((points, correct, total) => {
     setSpeedBest(correct)
@@ -435,18 +411,18 @@ export default function App() {
     saveSessions({ mode: 'speed', score: correct, total, pct: total > 0 ? Math.round((correct / total) * 100) : 0, timeSeconds: 60 })
     updateStreak()
     awardXP(correct, total)
-    syncToFirestore()
+    flushStorage()
     goHome()
-  }, [awardXP, goHome, syncToFirestore])
+  }, [awardXP, goHome])
 
   const onMatchEnd = useCallback((score) => {
     addDailyProgress(score)
     saveSessions({ mode: 'match', score, total: score, pct: 100, timeSeconds: 0 })
     updateStreak()
     awardXP(score, score)
-    syncToFirestore()
+    flushStorage()
     goHome()
-  }, [awardXP, goHome, syncToFirestore])
+  }, [awardXP, goHome])
 
   const startQOTD = useCallback((question) => {
     const state = {
@@ -461,6 +437,26 @@ export default function App() {
     saveActiveGame(state)
     setScreen('game')
   }, [])
+
+  if (authLoading) {
+    return (
+      <>
+        <ParticleBackground theme={theme} />
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: 'var(--text-secondary, rgba(255,255,255,0.6))' }}>Loading...</p>
+        </div>
+      </>
+    )
+  }
+
+  if (!user) {
+    return (
+      <>
+        <ParticleBackground theme={theme} />
+        <LoginScreen />
+      </>
+    )
+  }
 
   return (
     <>
@@ -481,6 +477,7 @@ export default function App() {
           onLeaderboard={goLeaderboard}
           onProfile={goProfile}
           onDuel={goDuel}
+          onAdmin={goAdmin}
         />
       )}
       {screen === 'game' && gameState && (
@@ -519,6 +516,9 @@ export default function App() {
       )}
       {screen === 'duel' && user && (
         <DuelScreen onBack={goHome} user={user} allQuestions={ALL_Q} />
+      )}
+      {screen === 'admin' && user && (
+        <AdminScreen onBack={goHome} currentUid={user.uid} />
       )}
     </>
   )

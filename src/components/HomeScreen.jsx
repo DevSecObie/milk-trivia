@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { BookCheck, Keyboard, BookOpen, Timer, Download, ChevronDown, Shuffle, BarChart2, Flame, AlertCircle, Sun, Moon, Volume2, VolumeX, Zap, Target, Trophy, TrendingUp, Clock, Star, TextCursorInput, Brain, HelpCircle, MessageCircle, Scale, Quote, Rocket, Heart, Gauge, Link2, Crown, Award, Shield, User, LogIn, Swords } from 'lucide-react'
 import { getStreak, getMissed, getSessions, isSoundOn, setSoundPref, getSettings, getDailyGoal, setDailyGoal, getDailyProgress, getQOTD, getLevelUpProgress, getXP, RANKS, getSurvivalBest, getSpeedBest } from '../lib/storage'
-import { signInAsGuest, signInWithGoogle } from '../lib/authService'
+import { signInWithGoogle } from '../lib/authService'
 import { CATEGORY_LABELS, getAllCategoryKeys } from '../data/categories'
 import ChristIcon from './ChristIcon'
 
@@ -41,7 +41,7 @@ const ranges = [
 ]
 const counts = [10, 20, 30, 50, 100, 240]
 
-export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, resumeData, onResume, onDismissResume, theme, setTheme, allQuestions, user, onLeaderboard, onProfile, onDuel }) {
+export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, resumeData, onResume, onDismissResume, theme, setTheme, allQuestions, user, onLeaderboard, onProfile, onDuel, onAdmin }) {
   const saved = getSettings()
   const [mode, setMode] = useState(saved.mode || 'mc')
   const [numQ, setNumQ] = useState(saved.numQuestions || 50)
@@ -99,7 +99,7 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
 
   const toggleSound = () => { const v = !sound; setSound(v); setSoundPref(v) }
   const handleSignInGoogle = async () => { setSigningIn(true); setAuthError(null); try { await signInWithGoogle() } catch (err) { setAuthError(err.message) } finally { setSigningIn(false) } }
-  const handleSignInGuest = async () => { setSigningIn(true); setAuthError(null); try { await signInAsGuest() } catch (err) { setAuthError(err.message) } finally { setSigningIn(false) } }
+  
   const isDark = theme === 'dark'
 
   return (
@@ -124,7 +124,7 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
           <span style={s.authText}>Sign in to compete on leaderboards & duel</span>
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={handleSignInGoogle} disabled={signingIn} style={s.authBtn}>{signingIn ? 'Signing in...' : 'Google'}</button>
-            <button onClick={handleSignInGuest} disabled={signingIn} style={s.authBtnSec}>{signingIn ? '...' : 'Guest'}</button>
+            
           </div>
           {authError && <div style={s.authError}>{authError}</div>}
         </div>
@@ -133,6 +133,7 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
           <div style={s.userAvatar}>{user.photoURL ? <img src={user.photoURL} alt="" style={s.userAvatarImg} /> : <span>{(user.displayName || 'A')[0].toUpperCase()}</span>}</div>
           <span style={s.authText}>{user.displayName || 'Anonymous'}</span>
           <button onClick={onDuel} style={s.duelNavBtn}><Swords size={14} /> Duel</button>
+          {onAdmin && <button onClick={onAdmin} style={s.duelNavBtn}>👑 Admin</button>}
         </div>
       )}
 

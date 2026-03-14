@@ -1,259 +1,211 @@
-const KEYS = {
-  SESSIONS: 'mq_sessions',
-  MISSED: 'mq_missed',
-  QUESTION_STATS: 'mq_qstats',
-  STREAK: 'mq_streak',
-  SETTINGS: 'mq_settings',
-  ACTIVE_GAME: 'mq_active_game',
-  SOUND: 'mq_sound',
-  THEME: 'mq_theme',
-  DAILY_GOAL: 'mq_daily_goal',
-  DAILY_PROGRESS: 'mq_daily_progress',
-  QOTD_HISTORY: 'mq_qotd_history',
-  LEVEL_UP: 'mq_level_up',
-  XP: 'mq_xp',
-  ACHIEVEMENTS: 'mq_achievements',
-  SURVIVAL_BEST: 'mq_survival_best',
-  SPEED_BEST: 'mq_speed_best',
-  DAILY_GOAL_DAYS: 'mq_daily_goal_days',
+// storage.js — Firestore-backed with local cache
+// All data lives in Firestore under users/{uid}
+// Local cache in memory for fast reads during a session
+
+import { getUserData, saveUserData, addSession as fsAddSession } from './firestoreService'
+
+let _uid = null
+let _cache = null
+let _saveTimer = null
+
+const DEFAULTS = {
+  xp: { total: 0, level: 1, title: 'Beginner' },
+  sessions: [],
+  missed: [],
+  questionStats: {},
+  streak: { current: 0, best: 0, lastDate: null },
+  settings: { mode: 'mc', numQuestions: 50, range: 'all', shuffle: true, confirmBeforeSubmit: true, categories: [] },
+  sound: true,
+  theme: 'dark',
+  dailyGoal: 20,
+  dailyProgress: { date: null, count: 0 },
+  qotdHistory: { date: null, questionNum: null, answered: false, correct: null },
+  levelUp: {},
+  achievements: [],
+  survivalBest: 0,
+  speedBest: 0,
+  dailyGoalDays: 0,
+  activeGame: null,
 }
 
-function get(key, fallback = null) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback }
-  catch { return fallback }
+// Debounced save to Firestore
+function scheduleSave() {
+  if (_saveTimer) clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => {
+    if (_uid && _cache) {
+      saveUserData(_uid, _cache).catch(e => console.error('Firestore save error:', e))
+    }
+  }, 2000)
 }
-function set(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
+
+function getVal(key) {
+  if (!_cache) return DEFAULTS[key]
+  return _cache[key] ?? DEFAULTS[key]
+}
+
+function setVal(key, value) {
+  if (!_cache) _cache = {}
+  _cache[key] = value
+  scheduleSave()
+}
+
+// ===== INIT: Load from Firestore =====
+export async function initStorage(uid) {
+  _uid = uid
+  const data = await getUserData(uid)
+  _cache = data || { ...DEFAULTS }
+  return _cache
+}
+
+export function isStorageReady() {
+  return _cache !== null
+}
+
+// Force save now
+export async function flushStorage() {
+  if (_saveTimer) clearTimeout(_saveTimer)
+  if (_uid && _cache) await saveUserData(_uid, _cache)
 }
 
 // ===== SESSION HISTORY =====
 export function saveSessions(session) {
-  // session: { date, mode, score, total, pct, timeSeconds, categories }
-  const sessions = get(KEYS.SESSIONS, [])
+  const sessions = getVal('sessions') || []
   sessions.push({ ...session, date: new Date().toISOString() })
-  // Keep last 100 sessions
   if (sessions.length > 100) sessions.splice(0, sessions.length - 100)
-  set(KEYS.SESSIONS, sessions)
+  setVal('sessions', sessions)
+  // Also update totals
+  _cache.totalAnswered = (_cache.totalAnswered || 0) + session.total
+  _cache.totalCorrect = (_cache.totalCorrect || 0) + session.score
+  scheduleSave()
 }
 
-export function getSessions() {
-  return get(KEYS.SESSIONS, [])
-}
+export function getSessions() { return getVal('sessions') || [] }
 
-// ===== QUESTION-LEVEL STATS (for difficulty weighting) =====
+// ===== QUESTION-LEVEL STATS =====
 export function recordQuestionResult(questionNum, correct) {
-  const stats = get(KEYS.QUESTION_STATS, {})
+  const stats = { ...getVal('questionStats') }
   if (!stats[questionNum]) stats[questionNum] = { attempts: 0, correct: 0, wrong: 0 }
   stats[questionNum].attempts++
   if (correct) stats[questionNum].correct++
   else stats[questionNum].wrong++
-  set(KEYS.QUESTION_STATS, stats)
+  setVal('questionStats', stats)
 }
 
-export function getQuestionStats() {
-  return get(KEYS.QUESTION_STATS, {})
-}
+export function getQuestionStats() { return getVal('questionStats') || {} }
 
-// Get difficulty-weighted questions (most missed first)
 export function getWeightedQuestions(questions) {
-  const stats = get(KEYS.QUESTION_STATS, {})
+  const stats = getVal('questionStats') || {}
   return [...questions].sort((a, b) => {
     const sa = stats[a.n] || { wrong: 0, attempts: 0 }
     const sb = stats[b.n] || { wrong: 0, attempts: 0 }
-    const ra = sa.attempts > 0 ? sa.wrong / sa.attempts : 0.5
-    const rb = sb.attempts > 0 ? sb.wrong / sb.attempts : 0.5
-    return rb - ra // Higher miss rate first
+    return (sb.attempts > 0 ? sb.wrong / sb.attempts : 0.5) - (sa.attempts > 0 ? sa.wrong / sa.attempts : 0.5)
   })
 }
 
-// ===== MISSED QUESTIONS BANK =====
-export function addMissed(questionNum) {
-  const missed = get(KEYS.MISSED, [])
-  if (!missed.includes(questionNum)) {
-    missed.push(questionNum)
-    set(KEYS.MISSED, missed)
-  }
-}
+// ===== MISSED =====
+export function addMissed(n) { const m = [...getVal('missed')]; if (!m.includes(n)) { m.push(n); setVal('missed', m) } }
+export function removeMissed(n) { setVal('missed', getVal('missed').filter(x => x !== n)) }
+export function getMissed() { return getVal('missed') || [] }
+export function clearMissed() { setVal('missed', []) }
 
-export function removeMissed(questionNum) {
-  const missed = get(KEYS.MISSED, [])
-  set(KEYS.MISSED, missed.filter(n => n !== questionNum))
-}
-
-export function getMissed() {
-  return get(KEYS.MISSED, [])
-}
-
-export function clearMissed() {
-  set(KEYS.MISSED, [])
-}
-
-// ===== STREAK TRACKING =====
+// ===== STREAK =====
 export function updateStreak() {
-  const streak = get(KEYS.STREAK, { current: 0, best: 0, lastDate: null })
+  const streak = { ...getVal('streak') }
   const today = new Date().toISOString().split('T')[0]
-
-  if (streak.lastDate === today) return streak // Already studied today
-
+  if (streak.lastDate === today) return streak
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-  if (streak.lastDate === yesterday) {
-    streak.current++
-  } else {
-    streak.current = 1
-  }
+  streak.current = streak.lastDate === yesterday ? streak.current + 1 : 1
   streak.lastDate = today
   if (streak.current > streak.best) streak.best = streak.current
-  set(KEYS.STREAK, streak)
+  setVal('streak', streak)
   return streak
 }
+export function getStreak() { return getVal('streak') || { current: 0, best: 0, lastDate: null } }
 
-export function getStreak() {
-  return get(KEYS.STREAK, { current: 0, best: 0, lastDate: null })
-}
-
-// ===== ACTIVE GAME (resume) =====
-export function saveActiveGame(state) {
-  set(KEYS.ACTIVE_GAME, state)
-}
-
-export function getActiveGame() {
-  return get(KEYS.ACTIVE_GAME, null)
-}
-
-export function clearActiveGame() {
-  localStorage.removeItem(KEYS.ACTIVE_GAME)
-}
+// ===== ACTIVE GAME =====
+export function saveActiveGame(state) { setVal('activeGame', state) }
+export function getActiveGame() { return getVal('activeGame') }
+export function clearActiveGame() { setVal('activeGame', null) }
 
 // ===== SETTINGS =====
-export function getSettings() {
-  return get(KEYS.SETTINGS, {
-    mode: 'mc',
-    numQuestions: 50,
-    range: 'all',
-    shuffle: true,
-    confirmBeforeSubmit: true,
-    categories: [],
-  })
-}
+export function getSettings() { return getVal('settings') || DEFAULTS.settings }
+export function saveSettings(s) { setVal('settings', s) }
 
-export function saveSettings(settings) {
-  set(KEYS.SETTINGS, settings)
-}
-
-// ===== SOUND =====
-export function isSoundOn() {
-  return get(KEYS.SOUND, true)
-}
-
-export function setSoundPref(on) {
-  set(KEYS.SOUND, on)
-}
-
-// ===== THEME =====
+// ===== SOUND / THEME =====
+export function isSoundOn() { return getVal('sound') ?? true }
+export function setSoundPref(on) { setVal('sound', on) }
 export function getTheme() {
-  return get(KEYS.THEME, 'dark')
+  // Theme can be read before Firestore loads — use localStorage as fallback
+  if (_cache) return _cache.theme ?? 'dark'
+  try { const v = localStorage.getItem('mq_theme'); return v ? JSON.parse(v) : 'dark' } catch { return 'dark' }
 }
-
 export function setThemePref(theme) {
-  set(KEYS.THEME, theme)
+  setVal('theme', theme)
+  try { localStorage.setItem('mq_theme', JSON.stringify(theme)) } catch {}
 }
 
-// ===== DAILY STUDY GOAL =====
-export function getDailyGoal() {
-  return get(KEYS.DAILY_GOAL, 20) // default 20 questions per day
-}
-
-export function setDailyGoal(goal) {
-  set(KEYS.DAILY_GOAL, goal)
-}
-
+// ===== DAILY GOAL =====
+export function getDailyGoal() { return getVal('dailyGoal') || 20 }
+export function setDailyGoal(g) { setVal('dailyGoal', g) }
 export function getDailyProgress() {
-  const data = get(KEYS.DAILY_PROGRESS, { date: null, count: 0 })
+  const data = getVal('dailyProgress') || { date: null, count: 0 }
   const today = new Date().toISOString().split('T')[0]
   if (data.date !== today) return { date: today, count: 0 }
   return data
 }
-
-export function addDailyProgress(numAnswered) {
+export function addDailyProgress(n) {
   const today = new Date().toISOString().split('T')[0]
-  const data = get(KEYS.DAILY_PROGRESS, { date: null, count: 0 })
-  if (data.date !== today) {
-    set(KEYS.DAILY_PROGRESS, { date: today, count: numAnswered })
-  } else {
-    data.count += numAnswered
-    set(KEYS.DAILY_PROGRESS, data)
-  }
+  const data = getVal('dailyProgress') || { date: null, count: 0 }
+  if (data.date !== today) setVal('dailyProgress', { date: today, count: n })
+  else { data.count += n; setVal('dailyProgress', data) }
 }
 
-// ===== QUESTION OF THE DAY =====
+// ===== QOTD =====
 export function getQOTD(totalQuestions) {
   const today = new Date().toISOString().split('T')[0]
-  const history = get(KEYS.QOTD_HISTORY, { date: null, questionNum: null, answered: false, correct: null })
-  if (history.date === today) return history
-  // Generate deterministic QOTD based on date
+  const h = getVal('qotdHistory') || { date: null, questionNum: null, answered: false, correct: null }
+  if (h.date === today) return h
   const seed = today.split('-').join('')
   const num = (parseInt(seed) % totalQuestions) + 1
   const qotd = { date: today, questionNum: num, answered: false, correct: null }
-  set(KEYS.QOTD_HISTORY, qotd)
+  setVal('qotdHistory', qotd)
   return qotd
 }
-
 export function markQOTDAnswered(correct) {
   const today = new Date().toISOString().split('T')[0]
-  const history = get(KEYS.QOTD_HISTORY, { date: today, questionNum: 1, answered: false, correct: null })
-  history.answered = true
-  history.correct = correct
-  set(KEYS.QOTD_HISTORY, history)
+  const h = getVal('qotdHistory') || { date: today, questionNum: 1, answered: false, correct: null }
+  h.answered = true; h.correct = correct
+  setVal('qotdHistory', h)
 }
 
-// ===== LEVEL UP (Progressive Mastery) =====
-export function getLevelUpProgress() {
-  return get(KEYS.LEVEL_UP, {})
-  // Structure: { [category]: { level: 0-5, questionsCorrect: 0, questionsAttempted: 0, unlocked: true/false } }
-}
-
+// ===== LEVEL UP =====
+export function getLevelUpProgress() { return getVal('levelUp') || {} }
 export function updateLevelUp(category, correct) {
-  const progress = get(KEYS.LEVEL_UP, {})
-  if (!progress[category]) {
-    progress[category] = { level: 1, questionsCorrect: 0, questionsAttempted: 0 }
-  }
+  const progress = { ...getVal('levelUp') }
+  if (!progress[category]) progress[category] = { level: 1, questionsCorrect: 0, questionsAttempted: 0 }
   const cat = progress[category]
   cat.questionsAttempted++
   if (correct) cat.questionsCorrect++
-
-  // Level up thresholds: need X correct answers at each level to advance
-  const thresholds = [0, 5, 10, 15, 20, 30] // questions needed per level
-  const nextThreshold = thresholds[cat.level] || 30
-  if (cat.questionsCorrect >= nextThreshold && cat.level < 5) {
-    cat.level++
-  }
-  set(KEYS.LEVEL_UP, progress)
+  const thresholds = [0, 5, 10, 15, 20, 30]
+  const next = thresholds[cat.level] || 30
+  if (cat.questionsCorrect >= next && cat.level < 5) cat.level++
+  setVal('levelUp', progress)
   return progress
 }
-
 export function getCategoryMastery(questionStats, allQuestions) {
-  // Compute mastery % per category
   const catStats = {}
   allQuestions.forEach(q => {
-    const cats = q.categories || []
     const stat = questionStats[q.n]
-    cats.forEach(c => {
+    ;(q.categories || []).forEach(c => {
       if (!catStats[c]) catStats[c] = { total: 0, attempted: 0, correct: 0 }
       catStats[c].total++
-      if (stat) {
-        catStats[c].attempted += stat.attempts
-        catStats[c].correct += stat.correct
-      }
+      if (stat) { catStats[c].attempted += stat.attempts; catStats[c].correct += stat.correct }
     })
   })
   return catStats
 }
 
-// ===== XP / RANK / LEVELS =====
-export function getXP() {
-  return get(KEYS.XP, { total: 0, level: 1, title: 'Beginner' })
-}
-
+// ===== XP =====
 const RANKS = [
   { level: 1, title: 'Beginner', xpNeeded: 0 },
   { level: 2, title: 'Student', xpNeeded: 100 },
@@ -271,32 +223,29 @@ const RANKS = [
   { level: 14, title: 'Priest', xpNeeded: 17000 },
   { level: 15, title: 'High Priest', xpNeeded: 22000 },
 ]
+export { RANKS }
 
+export function getXP() { return getVal('xp') || { total: 0, level: 1, title: 'Beginner' } }
 export function addXP(amount) {
-  const xp = get(KEYS.XP, { total: 0, level: 1, title: 'Beginner' })
+  const xp = { ...getVal('xp') }
   xp.total += amount
-  // Determine level
   let newRank = RANKS[0]
-  for (const r of RANKS) {
-    if (xp.total >= r.xpNeeded) newRank = r
-    else break
-  }
+  for (const r of RANKS) { if (xp.total >= r.xpNeeded) newRank = r; else break }
   const leveledUp = newRank.level > xp.level
-  xp.level = newRank.level
-  xp.title = newRank.title
-  set(KEYS.XP, xp)
+  xp.level = newRank.level; xp.title = newRank.title
+  setVal('xp', xp)
   return { ...xp, leveledUp, nextRank: RANKS[newRank.level] || null }
 }
-
 export function getXPForAction(action) {
-  const xpMap = {
-    correct: 10, incorrect: 2, perfectGame: 50, streak3: 15, streak5: 30, streak10: 75,
-    dailyGoal: 40, survivalRecord: 100, speedRound: 25, firstGame: 50,
-  }
-  return xpMap[action] || 0
+  return { correct: 10, incorrect: 2, perfectGame: 50, streak3: 15, streak5: 30, streak10: 75, dailyGoal: 40, survivalRecord: 100, speedRound: 25, firstGame: 50 }[action] || 0
 }
 
-export { RANKS }
+// ===== SURVIVAL / SPEED =====
+export function getSurvivalBest() { return getVal('survivalBest') || 0 }
+export function setSurvivalBest(val) { if (val > (getVal('survivalBest') || 0)) setVal('survivalBest', val) }
+export function getSpeedBest() { return getVal('speedBest') || 0 }
+export function setSpeedBest(val) { if (val > (getVal('speedBest') || 0)) setVal('speedBest', val) }
+export function incrementDailyGoalDays() { setVal('dailyGoalDays', (getVal('dailyGoalDays') || 0) + 1) }
 
 // ===== ACHIEVEMENTS =====
 const ACHIEVEMENT_DEFS = [
@@ -320,55 +269,28 @@ const ACHIEVEMENT_DEFS = [
   { id: 'no_missed', name: 'Clean Slate', desc: 'Clear all missed questions', icon: '✅', check: (s) => s.hadMissed && s.missedCount === 0 },
 ]
 
-export function getAchievements() {
-  return get(KEYS.ACHIEVEMENTS, []) // array of achievement ids
-}
-
+export function getAchievements() { return getVal('achievements') || [] }
 export function checkAchievements() {
-  const unlocked = get(KEYS.ACHIEVEMENTS, [])
+  const unlocked = [...(getVal('achievements') || [])]
   const sessions = getSessions()
   const streak = getStreak()
   const xp = getXP()
   const missed = getMissed()
-
   const stats = {
-    sessions,
-    totalAnswered: sessions.reduce((s, x) => s + x.total, 0),
-    streak,
-    xpLevel: xp.level,
-    missedCount: missed.length,
-    hadMissed: sessions.length > 0,
-    survivalBest: get(KEYS.SURVIVAL_BEST, 0),
-    speedBest: get(KEYS.SPEED_BEST, 0),
-    modesPlayed: new Set(sessions.map(s => s.mode)),
-    dailyGoalDays: get(KEYS.DAILY_GOAL_DAYS, 0),
+    sessions, totalAnswered: sessions.reduce((s, x) => s + x.total, 0), streak, xpLevel: xp.level,
+    missedCount: missed.length, hadMissed: sessions.length > 0, survivalBest: getVal('survivalBest') || 0,
+    speedBest: getVal('speedBest') || 0, modesPlayed: new Set(sessions.map(s => s.mode)), dailyGoalDays: getVal('dailyGoalDays') || 0,
   }
-
   const newlyUnlocked = []
   for (const ach of ACHIEVEMENT_DEFS) {
-    if (!unlocked.includes(ach.id) && ach.check(stats)) {
-      unlocked.push(ach.id)
-      newlyUnlocked.push(ach)
-    }
+    if (!unlocked.includes(ach.id) && ach.check(stats)) { unlocked.push(ach.id); newlyUnlocked.push(ach) }
   }
-
-  if (newlyUnlocked.length > 0) {
-    set(KEYS.ACHIEVEMENTS, unlocked)
-  }
-
+  if (newlyUnlocked.length > 0) setVal('achievements', unlocked)
   return { unlocked, newlyUnlocked, all: ACHIEVEMENT_DEFS }
-}
-
-export function getSurvivalBest() { return get(KEYS.SURVIVAL_BEST, 0) }
-export function setSurvivalBest(val) { const cur = get(KEYS.SURVIVAL_BEST, 0); if (val > cur) set(KEYS.SURVIVAL_BEST, val) }
-export function getSpeedBest() { return get(KEYS.SPEED_BEST, 0) }
-export function setSpeedBest(val) { const cur = get(KEYS.SPEED_BEST, 0); if (val > cur) set(KEYS.SPEED_BEST, val) }
-export function incrementDailyGoalDays() {
-  const days = get(KEYS.DAILY_GOAL_DAYS, 0)
-  set(KEYS.DAILY_GOAL_DAYS, days + 1)
 }
 
 // ===== CLEAR ALL =====
 export function clearAllData() {
-  Object.values(KEYS).forEach(k => localStorage.removeItem(k))
+  _cache = { ...DEFAULTS }
+  scheduleSave()
 }
