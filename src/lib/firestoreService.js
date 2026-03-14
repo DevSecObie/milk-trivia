@@ -149,3 +149,10 @@ export async function getOpenDuels(maxResults = 20) {
 export async function deleteDuel(duelId) {
   await deleteDoc(doc(db, 'duels', duelId))
 }
+
+// Delete user's Firestore data
+export async function deleteUserData(uid) {
+  const { deleteDoc, doc } = await import('firebase/firestore')
+  const { db } = await import('./firebase')
+  await deleteDoc(doc(db, 'users', uid))
+}

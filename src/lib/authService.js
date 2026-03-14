@@ -96,3 +96,9 @@ export async function logOut() {
 export function getCurrentUser() {
   return auth.currentUser
 }
+
+export async function deleteAccount() {
+  const user = auth.currentUser
+  if (!user) throw new Error('Not signed in')
+  await user.delete()
+}

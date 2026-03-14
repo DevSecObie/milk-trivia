@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ArrowLeft, LogOut, Award, Shield, Gauge, Trophy, Flame, Target, Edit2, Check } from 'lucide-react'
+import { ArrowLeft, LogOut, Award, Shield, Gauge, Trophy, Flame, Target, Edit2, Check, Trash2, KeyRound, Share2 } from 'lucide-react'
 import { getXP, RANKS, checkAchievements, getSurvivalBest, getSpeedBest, getStreak, getSessions } from '../lib/storage'
-import { setDisplayName } from '../lib/authService'
+import { setDisplayName, deleteAccount, resetPassword } from '../lib/authService'
+import { deleteUserData } from '../lib/firestoreService'
 import { saveUserData } from '../lib/firestoreService'
 
 export default function ProfileScreen({ onBack, user, onLogout }) {
@@ -139,6 +140,44 @@ export default function ProfileScreen({ onBack, user, onLogout }) {
           })}
         </div>
       </div>
+    
+      {/* Share Stats */}
+      <div style={st.card}>
+        <div style={st.cardLabel}>SHARE</div>
+        <button onClick={() => {
+          const text = `🥛 Milk Trivia Stats\n📊 Level ${xp.level} ${xp.title}\n⭐ ${xp.total} XP\n✅ ${totalAnswered} questions answered (${totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0}% accuracy)\n🔥 ${streak.best} day best streak\n🏆 ${achievements.unlocked.length}/${achievements.all.length} achievements\n\nTest your knowledge: https://milktrivia.com`
+          if (navigator.share) {
+            navigator.share({ title: 'Milk Trivia Stats', text }).catch(() => {})
+          } else {
+            navigator.clipboard.writeText(text).then(() => alert('Stats copied to clipboard!'))
+          }
+        }} style={st.shareBtn}><Share2 size={14} /> Share My Stats</button>
+      </div>
+
+      {/* Account Management */}
+      <div style={st.card}>
+        <div style={st.cardLabel}>ACCOUNT</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {user?.providerData?.[0]?.providerId === 'password' && (
+            <button onClick={async () => {
+              try { await resetPassword(user.email); alert('Password reset email sent!') }
+              catch (e) { alert(e.message) }
+            }} style={st.accountBtn}><KeyRound size={14} /> Change Password</button>
+          )}
+          <button onClick={async () => {
+            if (!confirm('Are you sure you want to delete your account? This cannot be undone. All your progress will be lost.')) return
+            if (!confirm('FINAL WARNING: This will permanently delete your account and all data. Type OK to confirm.')) return
+            try {
+              await deleteUserData(user.uid)
+              await deleteAccount()
+              alert('Account deleted.')
+            } catch (e) {
+              alert('Failed to delete account: ' + e.message + '. You may need to sign in again first.')
+            }
+          }} style={st.deleteBtn}><Trash2 size={14} /> Delete Account</button>
+        </div>
+      </div>
+
     </div>
   )
 }
@@ -178,4 +217,7 @@ const st = {
   achCard: { padding: '10px 6px', textAlign: 'center', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' },
   achName: { fontSize: 10, fontWeight: 700, color: 'var(--text)', marginTop: 4, fontFamily: 'var(--font-display)' },
   achDesc: { fontSize: 8, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 },
+  shareBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  accountBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  deleteBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,51,51,0.3)', background: 'rgba(255,51,51,0.08)', color: '#ff4444', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
 }
