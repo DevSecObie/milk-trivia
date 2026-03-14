@@ -23,6 +23,8 @@ import { onAuthChange, logOut } from './lib/authService'
 import { initUserData } from './lib/firestoreService'
 import { initStorage, flushStorage, getActiveGame, clearActiveGame, saveActiveGame, getTheme, setThemePref, saveSettings, getMissed, getWeightedQuestions, updateStreak, saveSessions, recordQuestionResult, addMissed, removeMissed, addDailyProgress, updateLevelUp, markQOTDAnswered, addXP, getXPForAction, checkAchievements, setSurvivalBest, setSpeedBest, getXP, getSurvivalBest, getSpeedBest, getStreak, getSessions } from './lib/storage'
 
+const ADMIN_EMAILS = ['obediyah.ben.israel@gmail.com', 'oisrae1@wgu.edu']
+
 function shuffleArray(arr) {
   const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }; return a
 }
@@ -477,7 +479,7 @@ export default function App() {
           onLeaderboard={goLeaderboard}
           onProfile={goProfile}
           onDuel={goDuel}
-          onAdmin={goAdmin}
+          onAdmin={user && ADMIN_EMAILS.includes(user.email) ? goAdmin : undefined}
         />
       )}
       {screen === 'game' && gameState && (
@@ -518,7 +520,7 @@ export default function App() {
         <DuelScreen onBack={goHome} user={user} allQuestions={ALL_Q} />
       )}
       {screen === 'admin' && user && (
-        <AdminScreen onBack={goHome} currentUid={user.uid} />
+        <AdminScreen onBack={goHome} currentUid={user.uid} userEmail={user.email} />
       )}
     </>
   )

@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
 import { getAllUsers } from '../lib/firestoreService'
 
-export default function AdminScreen({ onBack, currentUid }) {
+const ADMIN_EMAILS = ['obediyah.ben.israel@gmail.com', 'oisrae1@wgu.edu']
+
+export default function AdminScreen({ onBack, currentUid, userEmail }) {
+  if (!ADMIN_EMAILS.includes(userEmail)) {
+    return <div style={s.wrapper}><p style={s.loadingText}>Access denied.</p><button onClick={onBack} style={s.backBtn}>← Back</button></div>
+  }
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
