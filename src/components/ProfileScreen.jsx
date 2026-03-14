@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, LogOut, Award, Shield, Gauge, Trophy, Flame, Target, Edit2, Check } from 'lucide-react'
 import { getXP, RANKS, checkAchievements, getSurvivalBest, getSpeedBest, getStreak, getSessions } from '../lib/storage'
 import { setDisplayName } from '../lib/authService'
-import { saveProfile } from '../lib/firestoreService'
+import { saveUserData } from '../lib/firestoreService'
 
 export default function ProfileScreen({ onBack, user, onLogout }) {
   const xp = getXP()
@@ -22,7 +22,7 @@ export default function ProfileScreen({ onBack, user, onLogout }) {
   const handleSaveName = async () => {
     if (nameInput.trim() && user) {
       await setDisplayName(nameInput.trim())
-      await saveProfile(user.uid, { displayName: nameInput.trim() })
+      await saveUserData(user.uid, { displayName: nameInput.trim() })
       setEditing(false)
     }
   }
