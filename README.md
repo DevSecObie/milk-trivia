@@ -29,3 +29,4 @@ Update `base` in `vite.config.js` to match your repo name:
 ```js
 base: '/your-repo-name/',
 ```
+
