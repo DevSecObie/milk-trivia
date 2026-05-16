@@ -1,6 +1,32 @@
 import { db } from './firebase'
 import { doc, setDoc, getDoc, getDocs, collection, query, orderBy, limit, updateDoc, serverTimestamp, onSnapshot, deleteDoc, where, runTransaction, increment } from 'firebase/firestore'
 
+// ===== USER FIELD WHITELIST =====
+// Mirror of the field sets in firestore.rules (clientWritableFields() and
+// integrityFields()). Used as a runtime guard in saveUserData so that a
+// regression which adds a stray field to the cached user payload fails
+// loudly in dev rather than producing a silent permission-denied in prod.
+// See .kiro/specs/firestore-rules-hardening/design.md → "Client refactor surface".
+const CLIENT_WRITABLE_USER_FIELDS = [
+  'displayName', 'settings', 'dailyGoal', 'missed',
+  'theme', 'sound', 'activeGame', 'updatedAt', 'createdAt',
+]
+
+const INTEGRITY_USER_FIELDS = [
+  'xp', 'level', 'title',
+  'totalAnswered', 'totalCorrect', 'streak',
+  'survivalBest', 'speedBest',
+  'achievements', 'sessions', 'questionStats',
+  'levelUp', 'dailyProgress', 'qotdHistory', 'dailyGoalDays',
+]
+
+export const ALL_KNOWN_USER_FIELDS = Object.freeze([
+  ...CLIENT_WRITABLE_USER_FIELDS,
+  ...INTEGRITY_USER_FIELDS,
+])
+
+const ALL_KNOWN_USER_FIELDS_SET = new Set(ALL_KNOWN_USER_FIELDS)
+
 // ===== USER PROFILE + ALL STATS =====
 const defaultUserData = {
   displayName: 'Anonymous',
@@ -42,6 +68,17 @@ export async function initUserData(uid, displayName) {
 }
 
 export async function saveUserData(uid, data) {
+  // Runtime whitelist guard. Per design.md → "Client refactor surface" call site #2,
+  // every key written through saveUserData must be in ALL_KNOWN_USER_FIELDS so that
+  // a future regression adding a stray field (e.g. "isAdmin") fails loudly in dev
+  // instead of producing a silent permission-denied from rules in production.
+  if (data && typeof data === 'object') {
+    for (const key of Object.keys(data)) {
+      if (!ALL_KNOWN_USER_FIELDS_SET.has(key)) {
+        throw new Error(`saveUserData: unknown field '${key}' is not in allKnownUserFields`)
+      }
+    }
+  }
   await setDoc(doc(db, 'users', uid), {
     ...data,
     updatedAt: serverTimestamp(),
@@ -75,7 +112,12 @@ export async function addSession(uid, session) {
 
 // ===== LEADERBOARDS =====
 export async function getLeaderboard(type = 'xp', maxResults = 50) {
-  const q = query(collection(db, 'users'), orderBy(type, 'desc'), limit(maxResults))
+  // Cap leaderboard reads at 50 results client-side (Requirement 1.3).
+  // Firestore rules cannot inspect query.limit reliably, so this clamp is the
+  // sole enforcement point. Defense-in-depth: a future caller passing a larger
+  // value (or user-supplied input) is silently clamped instead of leaking.
+  const cap = Math.min(50, maxResults)
+  const q = query(collection(db, 'users'), orderBy(type, 'desc'), limit(cap))
   const snap = await getDocs(q)
   return snap.docs.map((d, i) => ({ uid: d.id, rank: i + 1, ...d.data() }))
 }
