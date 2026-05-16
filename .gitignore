@@ -3,3 +3,16 @@ dist/
 .env
 .env.local
 .env.*.local
+
+# Firebase emulator artifacts
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+*.log
+
+# Editor / IDE local config
+.vscode/
+.idea/
+
+# OS
+.DS_Store

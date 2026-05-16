@@ -2,19 +2,292 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection: own doc read/write/delete only
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow delete: if request.auth != null && request.auth.uid == userId;
+
+    // ============================================================
+    // Helpers
+    // ============================================================
+    function isAuthed() {
+      return request.auth != null;
     }
 
-    // Duels: authenticated users can create/read/update
+    function isSelf(userId) {
+      return isAuthed() && request.auth.uid == userId;
+    }
+
+    // ============================================================
+    // users/{userId}
+    // ============================================================
+    match /users/{userId} {
+
+      // --- field-set helpers ---
+      function clientWritableFields() {
+        return [
+          'displayName', 'settings', 'dailyGoal', 'missed',
+          'theme', 'sound', 'activeGame', 'updatedAt', 'createdAt'
+        ];
+      }
+
+      function integrityFields() {
+        return [
+          'xp', 'level', 'title',
+          'totalAnswered', 'totalCorrect', 'streak',
+          'survivalBest', 'speedBest',
+          'achievements', 'sessions', 'questionStats',
+          'levelUp', 'dailyProgress', 'qotdHistory', 'dailyGoalDays'
+        ];
+      }
+
+      function allKnownUserFields() {
+        return clientWritableFields().concat(integrityFields());
+      }
+
+      function changedKeys() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      function noUnknownFieldsOnCreate() {
+        // Every key in the new doc must be a known user field.
+        return request.resource.data.keys().hasOnly(allKnownUserFields());
+      }
+
+      function integrityFieldsValid() {
+        // Documented_Tradeoff_Path: integrity fields are still client-writable
+        // for this iteration. The migration to Server_Recompute_Path will
+        // replace this predicate with `!changedKeys().hasAny(integrityFields())`
+        // once writes move to a Cloud Function.
+        //
+        // What we *do* enforce now: every changed key must be a *known* field
+        // (no unknown / unscoped field injection). The "no unknown fields"
+        // guarantee for the new doc state as a whole is enforced separately by
+        // the `keys().hasOnly(allKnownUserFields())` clause on `allow update`.
+        return changedKeys().hasOnly(allKnownUserFields());
+      }
+
+      function integrityFieldsAtDefaults() {
+        // On create, integrity fields, if present, must equal documented defaults.
+        let d = request.resource.data;
+        return
+          (!('xp' in d) || d.xp == 0) &&
+          (!('level' in d) || d.level == 1) &&
+          (!('title' in d) || d.title == 'Beginner') &&
+          (!('totalAnswered' in d) || d.totalAnswered == 0) &&
+          (!('totalCorrect' in d) || d.totalCorrect == 0) &&
+          (!('survivalBest' in d) || d.survivalBest == 0) &&
+          (!('speedBest' in d) || d.speedBest == 0) &&
+          (!('dailyGoalDays' in d) || d.dailyGoalDays == 0) &&
+          (!('achievements' in d) || d.achievements.size() == 0) &&
+          (!('sessions' in d) || d.sessions.size() == 0);
+      }
+
+      function clientWritableShape() {
+        let d = request.resource.data;
+        return
+          (!('displayName' in d) || (d.displayName is string && d.displayName.size() <= 60)) &&
+          (!('dailyGoal' in d) || (d.dailyGoal is int && d.dailyGoal >= 0 && d.dailyGoal <= 1000)) &&
+          (!('theme' in d) || d.theme is string) &&
+          (!('sound' in d) || d.sound is bool) &&
+          (!('settings' in d) || d.settings is map) &&
+          (!('missed' in d) || d.missed is list) &&
+          (!('activeGame' in d) || d.activeGame == null || d.activeGame is map);
+      }
+
+      // --- read ---
+      // Owner can always read their own doc. Any authenticated user may read
+      // any user doc; this is required for leaderboard queries which are
+      // ordered by xp/survivalBest/speedBest and limited to <=50 results.
+      // The 50-result cap is enforced client-side in firestoreService.js
+      // (rules cannot inspect query.limit reliably across SDK versions).
+      allow read: if isAuthed();
+
+      // --- create ---
+      // Only the owning user may create their own doc, and only with known
+      // fields, with integrity fields (if present) at default values.
+      allow create: if isSelf(userId)
+        && noUnknownFieldsOnCreate()
+        && integrityFieldsAtDefaults()
+        && clientWritableShape();
+
+      // --- update ---
+      // Only the owner; only known fields appear in the result; client-writable
+      // fields are shape-validated. Under the Documented_Tradeoff_Path,
+      // integrity fields remain client-writable; the migration to
+      // Server_Recompute_Path will tighten `integrityFieldsValid` to
+      // `!changedKeys().hasAny(integrityFields())`.
+      allow update: if isSelf(userId)
+        && integrityFieldsValid()
+        && request.resource.data.keys().hasOnly(allKnownUserFields())
+        && clientWritableShape();
+
+      // --- delete ---
+      allow delete: if isSelf(userId);
+    }
+
+    // ============================================================
+    // duels/{duelId}
+    // ============================================================
     match /duels/{duelId} {
-      allow read, create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null && (
-        resource.data.hostUid == request.auth.uid
-      );
+
+      // --- field-set helpers ---
+      function duelSchemaFields() {
+        return [
+          'hostUid', 'hostName', 'hostScore', 'hostAnswers', 'hostReady',
+          'guestUid', 'guestName', 'guestScore', 'guestAnswers', 'guestReady',
+          'questions', 'currentRound', 'totalRounds', 'status', 'createdAt'
+        ];
+      }
+
+      function hostOwned()  { return ['hostScore', 'hostAnswers', 'hostReady']; }
+      function guestOwned() { return ['guestScore', 'guestAnswers', 'guestReady']; }
+      function sharedOwned(){ return ['currentRound', 'status']; }
+      function joinFields() { return ['guestUid', 'guestName', 'status']; }
+
+      function immutableFields() {
+        // hostUid, hostName, questions, totalRounds, createdAt always immutable.
+        // guestUid and guestName are immutable *after* first being set non-null;
+        // that case is handled separately in the join handshake.
+        return ['hostUid', 'hostName', 'questions', 'totalRounds', 'createdAt'];
+      }
+
+      function changedDuelKeys() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      // --- role helpers ---
+      function isHost() {
+        return isAuthed() && resource.data.hostUid == request.auth.uid;
+      }
+
+      function isGuest() {
+        return isAuthed()
+          && resource.data.guestUid != null
+          && resource.data.guestUid == request.auth.uid;
+      }
+
+      function isParticipant() { return isHost() || isGuest(); }
+
+      // True iff every key in `keys` keeps the same value between old and new.
+      function onlyChanged(allowed) {
+        return changedDuelKeys().hasOnly(allowed);
+      }
+
+      // --- shape validation ---
+      function isCreateShapeValid() {
+        let d = request.resource.data;
+        return
+          d.keys().hasOnly(duelSchemaFields())
+          && d.keys().hasAll(['hostUid', 'hostName', 'hostScore', 'hostAnswers', 'hostReady',
+                              'guestUid', 'guestName', 'guestScore', 'guestAnswers', 'guestReady',
+                              'questions', 'currentRound', 'totalRounds', 'status', 'createdAt'])
+          && d.hostUid is string && d.hostUid == request.auth.uid
+          && d.hostName is string && d.hostName.size() >= 1 && d.hostName.size() <= 40
+          && d.hostScore == 0
+          && d.hostAnswers is list && d.hostAnswers.size() == 0
+          && d.hostReady == false
+          && d.guestUid == null
+          && d.guestName == null
+          && d.guestScore == 0
+          && d.guestAnswers is list && d.guestAnswers.size() == 0
+          && d.guestReady == false
+          && d.questions is list && d.questions.size() >= 1 && d.questions.size() <= 100
+          && d.currentRound == 0
+          && d.totalRounds is int && d.totalRounds == d.questions.size()
+          && d.status == 'waiting'
+          && d.createdAt == request.time;
+      }
+
+      function isUpdateShapeValid() {
+        let d = request.resource.data;
+        let total = resource.data.totalRounds;
+        return
+          d.keys().hasOnly(duelSchemaFields())
+          && (!('hostScore'    in d) || (d.hostScore    is int  && d.hostScore    >= 0 && d.hostScore    <= total))
+          && (!('guestScore'   in d) || (d.guestScore   is int  && d.guestScore   >= 0 && d.guestScore   <= total))
+          && (!('hostAnswers'  in d) || (d.hostAnswers  is list && d.hostAnswers.size()  <= total))
+          && (!('guestAnswers' in d) || (d.guestAnswers is list && d.guestAnswers.size() <= total))
+          && (!('hostReady'    in d) || d.hostReady  is bool)
+          && (!('guestReady'   in d) || d.guestReady is bool)
+          && (!('currentRound' in d) || (d.currentRound is int && d.currentRound >= 0 && d.currentRound <= total))
+          && (!('status'       in d) || d.status in ['waiting', 'playing', 'finished']);
+      }
+
+      function immutableFieldsUnchanged() {
+        return changedDuelKeys().hasOnly(
+          ['hostScore','hostAnswers','hostReady',
+           'guestUid','guestName',
+           'guestScore','guestAnswers','guestReady',
+           'currentRound','status']
+        );
+      }
+
+      // --- transition predicates ---
+      function statusTransitionAllowed() {
+        let oldS = resource.data.status;
+        let newS = request.resource.data.status;
+        return newS == oldS
+          || (oldS == 'waiting' && (newS == 'playing' || newS == 'finished'))
+          || (oldS == 'playing' && newS == 'finished');
+      }
+
+      function currentRoundMonotone() {
+        let oldR = resource.data.currentRound;
+        let newR = request.resource.data.currentRound;
+        return newR >= oldR && newR <= oldR + 1;
+      }
+
+      function scoresMonotone() {
+        return request.resource.data.hostScore  >= resource.data.hostScore
+            && request.resource.data.guestScore >= resource.data.guestScore;
+      }
+
+      function answersMonotone() {
+        return request.resource.data.hostAnswers.size()  >= resource.data.hostAnswers.size()
+            && request.resource.data.guestAnswers.size() >= resource.data.guestAnswers.size();
+      }
+
+      // --- join handshake ---
+      // A non-host authenticated user may "claim" a waiting duel by setting
+      // guestUid to their own uid and guestName to a string, only when the
+      // current guestUid is null and only those fields (plus status) change.
+      function isJoinHandshake() {
+        let d = request.resource.data;
+        return resource.data.guestUid == null
+          && resource.data.hostUid != request.auth.uid
+          && d.guestUid == request.auth.uid
+          && d.guestName is string && d.guestName.size() >= 1 && d.guestName.size() <= 40
+          && onlyChanged(joinFields())
+          && (d.status == 'playing' || d.status == 'waiting');
+      }
+
+      // --- read ---
+      // Any authenticated user may read any duel (matchmaking + spectating).
+      allow read: if isAuthed();
+
+      // --- create ---
+      allow create: if isAuthed()
+        && request.resource.data.hostUid == request.auth.uid
+        && isCreateShapeValid();
+
+      // --- update ---
+      // Three legal kinds of update:
+      //   (1) Join handshake by a non-host non-guest authenticated user.
+      //   (2) Host updating host-owned + shared fields.
+      //   (3) Guest updating guest-owned + shared fields.
+      // All three must satisfy update-shape, immutability, and transition rules.
+      allow update: if isAuthed()
+        && isUpdateShapeValid()
+        && immutableFieldsUnchanged()
+        && statusTransitionAllowed()
+        && currentRoundMonotone()
+        && scoresMonotone()
+        && answersMonotone()
+        && (
+            isJoinHandshake()
+            || (isHost()  && onlyChanged(hostOwned().concat(sharedOwned())))
+            || (isGuest() && onlyChanged(guestOwned().concat(sharedOwned())))
+        );
+
+      // --- delete ---
+      allow delete: if isHost();
     }
   }
 }
