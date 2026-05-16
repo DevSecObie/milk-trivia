@@ -41,7 +41,7 @@ const ranges = [
 ]
 const counts = [10, 20, 30, 50, 100, 240]
 
-export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, resumeData, onResume, onDismissResume, theme, setTheme, allQuestions, user, onLeaderboard, onProfile, onDuel, onAdmin }) {
+export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, resumeData, onResume, onDismissResume, theme, setTheme, allQuestions, user, onLeaderboard, onProfile, onDuel }) {
   const saved = getSettings()
   const [mode, setMode] = useState(saved.mode || 'mc')
   const [numQ, setNumQ] = useState(saved.numQuestions || 50)
@@ -133,7 +133,6 @@ export default function HomeScreen({ onStart, onStats, onMemoryGame, onQOTD, res
           <div style={s.userAvatar}>{user.photoURL ? <img src={user.photoURL} alt="" style={s.userAvatarImg} /> : <span>{(user.displayName || 'A')[0].toUpperCase()}</span>}</div>
           <span style={s.authText}>{user.displayName || 'Anonymous'}</span>
           <button onClick={onDuel} style={s.duelNavBtn}><Swords size={14} /> Duel</button>
-          {onAdmin && <button onClick={onAdmin} style={s.duelNavBtn}>👑 Admin</button>}
         </div>
       )}
 

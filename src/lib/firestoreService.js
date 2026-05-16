@@ -80,12 +80,6 @@ export async function getLeaderboard(type = 'xp', maxResults = 50) {
   return snap.docs.map((d, i) => ({ uid: d.id, rank: i + 1, ...d.data() }))
 }
 
-// ===== ADMIN: GET ALL USERS =====
-export async function getAllUsers() {
-  const snap = await getDocs(query(collection(db, 'users'), orderBy('xp', 'desc')))
-  return snap.docs.map(d => ({ uid: d.id, ...d.data() }))
-}
-
 // ===== MULTIPLAYER DUEL =====
 function withTimeout(promise, ms = 10000) {
   return Promise.race([
